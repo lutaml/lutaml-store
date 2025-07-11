@@ -1,0 +1,301 @@
+= VCard Store Demo
+:toc:
+:toclevels: 3
+
+== Overview
+
+This demo showcases the capabilities of `lutaml-store` using vCard (Virtual Contact File) models. It demonstrates how to store, retrieve, and manage contact information using different storage backends and advanced features like caching, compression, and data integrity.
+
+== Features Demonstrated
+
+=== Storage Backends
+* **Memory Store** - Fast in-memory storage for temporary data
+* **Filesystem Store** - File-based persistence with organized directory structure
+* **SQLite Store** - Database storage for structured queries and relationships
+* **Cache Store** - High-performance caching with TTL and LRU eviction
+
+=== Advanced Features
+* **Data Integrity** - SHA256 checksums to ensure data hasn't been corrupted
+* **Compression** - GZIP compression to reduce storage space
+* **Search Capabilities** - Find contacts by organization, email domain, birth year
+* **Multiple Key Strategies** - UID-based, email-based, and organized naming schemes
+
+== Demo Structure
+
+----
+demo/
+├── README.adoc              # This documentation
+├── vcard_models.rb          # VCard model definitions
+├── vcard_store_demo.rb      # Main demo script
+└── data/                    # Generated during demo
+    ├── vcards/              # Filesystem store files
+    └── vcards.db            # SQLite database
+----
+
+== VCard Models
+
+The demo uses simplified vCard models based on the vCard 4.0 specification:
+
+=== Core Models
+
+==== `Vcard`
+Main contact record containing:
+* `version` - vCard format version (4.0)
+* `fn` - Formatted name (display name)
+* `n` - Structured name components
+* `tel` - Phone numbers (collection)
+* `email` - Email addresses (collection)
+* `org` - Organization
+* `bday` - Birthday
+* `uid` - Unique identifier
+
+==== `VcardName`
+Structured name with components:
+* `family` - Last name
+* `given` - First name
+* `additional` - Middle names
+* `prefix` - Title (Dr., Mr., etc.)
+* `suffix` - Suffix (Jr., PhD, etc.)
+
+==== `VcardTel`
+Phone number with metadata:
+* `value` - Phone number
+* `type` - Phone type (work, mobile, home)
+* `pref` - Preference ranking
+
+==== `VcardBday`
+Birthday with flexible date formats:
+* `value` - Date in ISO format or text
+
+== Sample Data
+
+The demo creates 10 diverse contact records representing different professions and use cases:
+
+1. **John Doe** - Tech Corp employee with multiple emails
+2. **Jane Smith** - Design Studio creative
+3. **Dr. Robert Johnson** - Medical professional
+4. **Maria Garcia** - Startup innovator
+5. **David Wilson** - Independent consultant
+6. **Sarah Brown** - University researcher
+7. **Michael Davis** - Creative agency worker
+8. **Lisa Anderson** - Financial services
+9. **James Taylor** - Music producer
+10. **Emma Thompson** - Legal professional
+
+== Running the Demo
+
+=== Prerequisites
+
+Ensure you have the lutaml-store gem and its dependencies installed:
+
+[source,bash]
+----
+bundle install
+----
+
+=== Execute the Demo
+
+[source,bash]
+----
+cd demo
+ruby vcard_store_demo.rb
+----
+
+=== Expected Output
+
+The demo will show:
+
+1. **Initialization** - Setting up different store types
+2. **Sample Data Creation** - Generating 10 vCard records
+3. **Memory Store Demo** - Fast in-memory operations
+4. **Filesystem Store Demo** - File persistence with organized naming
+5. **SQLite Store Demo** - Database storage with email-based keys
+6. **Cache Store Demo** - High-performance caching with TTL
+7. **Search Capabilities** - Finding contacts by various criteria
+8. **Data Integrity** - Demonstrating checksums and compression
+
+== Storage Strategies
+
+=== Memory Store
+* **Use Case**: Temporary data, fast access, testing
+* **Key Strategy**: UUID-based for unique identification
+* **Persistence**: None (data lost on restart)
+
+=== Filesystem Store
+* **Use Case**: Simple persistence, human-readable storage
+* **Key Strategy**: Organized naming (`contact_1_doe`)
+* **Persistence**: Individual JSON files in directory structure
+
+=== SQLite Store
+* **Use Case**: Structured queries, relationships, ACID transactions
+* **Key Strategy**: Email username for easy lookup
+* **Persistence**: Single database file with full SQL capabilities
+
+=== Cache Store
+* **Use Case**: Performance optimization, temporary storage
+* **Key Strategy**: UUID with TTL-based expiration
+* **Features**: LRU eviction, automatic cleanup, cache statistics
+
+== Search Examples
+
+The demo includes several search patterns:
+
+=== By Organization
+[source,ruby]
+----
+# Find all contacts from "Tech Corp"
+find_by_organization("Tech Corp")
+----
+
+=== By Email Domain
+[source,ruby]
+----
+# Find all contacts with "example.com" emails
+find_by_email_domain("example.com")
+----
+
+=== By Birth Year
+[source,ruby]
+----
+# Find all contacts born in 1985
+find_by_birth_year(1985)
+----
+
+== Data Integrity Features
+
+=== Checksums
+The demo shows how to enable SHA256 checksums:
+
+[source,ruby]
+----
+store = Lutaml::Store::Store.new(
+  adapter: { type: :memory },
+  integrity: { enabled: true, algorithm: :sha256 }
+)
+----
+
+=== Compression
+GZIP compression reduces storage space:
+
+[source,ruby]
+----
+store = Lutaml::Store::Store.new(
+  adapter: { type: :memory },
+  compression: { enabled: true, algorithm: :gzip }
+)
+----
+
+== Performance Considerations
+
+=== Memory Store
+* **Pros**: Fastest access, no I/O overhead
+* **Cons**: Limited by RAM, no persistence
+* **Best For**: Caching, temporary data, testing
+
+=== Filesystem Store
+* **Pros**: Simple, human-readable, version control friendly
+* **Cons**: Slower for large datasets, limited query capabilities
+* **Best For**: Configuration, small datasets, debugging
+
+=== SQLite Store
+* **Pros**: ACID transactions, complex queries, excellent performance
+* **Cons**: Single writer limitation, file locking
+* **Best For**: Structured data, relationships, production use
+
+=== Cache Store
+* **Pros**: Automatic expiration, LRU eviction, high performance
+* **Cons**: Temporary storage, memory limited
+* **Best For**: Frequently accessed data, API responses
+
+== Extending the Demo
+
+=== Adding New Fields
+To add new vCard fields:
+
+1. Update the `Vcard` model with new attributes
+2. Modify the `create_vcard` method to accept new parameters
+3. Update sample data generation
+4. Add search methods for new fields
+
+=== Custom Storage Backends
+Create custom adapters by:
+
+1. Inheriting from `Lutaml::Store::Adapter::Base`
+2. Implementing required methods (`save`, `load`, `delete`, etc.)
+3. Registering the adapter with the store
+
+=== Advanced Queries
+Implement complex search patterns:
+
+[source,ruby]
+----
+# Find contacts by age range
+def find_by_age_range(min_age, max_age)
+  # Implementation using birth date calculations
+end
+
+# Find contacts with multiple emails
+def find_multi_email_contacts
+  # Implementation checking email array length
+end
+----
+
+== Real-World Applications
+
+This demo pattern can be adapted for:
+
+* **Contact Management Systems** - CRM applications
+* **User Profile Storage** - Web applications
+* **Configuration Management** - Application settings
+* **Document Storage** - Content management
+* **API Response Caching** - Performance optimization
+* **Session Storage** - Web session management
+
+== Troubleshooting
+
+=== Common Issues
+
+==== Permission Errors
+Ensure write permissions for the `demo/data/` directory:
+[source,bash]
+----
+chmod 755 demo/data
+----
+
+==== SQLite Lock Issues
+If SQLite database is locked:
+[source,bash]
+----
+rm demo/data/vcards.db
+----
+
+==== Memory Issues
+For large datasets, consider:
+* Using filesystem or SQLite stores instead of memory
+* Implementing pagination for search results
+* Adding cleanup routines for cache stores
+
+=== Debug Mode
+Enable verbose output by modifying the demo script:
+[source,ruby]
+----
+# Add at the top of vcard_store_demo.rb
+ENV['DEBUG'] = 'true'
+----
+
+== Next Steps
+
+After running this demo, consider:
+
+1. **Exploring the Generated Data** - Examine files in `demo/data/`
+2. **Modifying Sample Data** - Add your own contact records
+3. **Implementing New Features** - Add search, sorting, or filtering
+4. **Performance Testing** - Benchmark different storage backends
+5. **Integration** - Use lutaml-store in your own applications
+
+== Resources
+
+* link:../README.md[Lutaml::Store Documentation]
+* link:../lib/lutaml/store/[Source Code]
+* link:../spec/[Test Suite]
+* https://tools.ietf.org/html/rfc6350[vCard 4.0 Specification]

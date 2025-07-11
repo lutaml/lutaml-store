@@ -1,0 +1,15 @@
+# frozen_string_literal: true
+
+source "https://rubygems.org"
+
+# Core dependencies
+gem "lutaml-store", path: ".."
+
+# Demo enhancement gems
+gem "paint", "~> 2.3" # For colored terminal output
+gem "sqlite3", "~> 1.4" # For SQLite database support
+gem "table_tennis", "~> 0.0.6" # For table formatting
+
+# Development dependencies
+gem "bundler", "~> 2.0"
+gem "rake", "~> 13.0"
