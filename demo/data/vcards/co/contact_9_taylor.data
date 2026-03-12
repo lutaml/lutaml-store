@@ -1,0 +1,1 @@
+{:version=>"4.0", :fn=>"James Taylor", :n=>{:family=>"Taylor", :given=>"James", :additional=>nil, :prefix=>nil, :suffix=>nil}, :tel=>[{:value=>"+1-555-0109", :type=>"mobile", :pref=>nil}], :email=>["james.taylor@music.com", "jtaylor@personal.net"], :org=>"Music Production", :bday=>{:value=>"1983-01-12"}, :uid=>"0816b9c0-7957-43b2-8a9c-b2df8b2e974d"}

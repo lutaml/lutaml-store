@@ -1,0 +1,1250 @@
+= Lutaml::Store
+
+https://github.com/lutaml/lutaml-store[image:https://img.shields.io/github/stars/lutaml/lutaml-store.svg?style=social[GitHub Stars]]
+https://github.com/lutaml/lutaml-store[image:https://img.shields.io/github/forks/lutaml/lutaml-store.svg?style=social[GitHub Forks]]
+image:https://img.shields.io/github/license/lutaml/lutaml-store.svg[License]
+image:https://img.shields.io/github/actions/workflow/status/lutaml/lutaml-store/test.yml?branch=main[Build Status]
+image:https://img.shields.io/gem/v/lutaml-store.svg[RubyGems Version]
+
+== Purpose
+
+Lutaml::Store provides a sophisticated store-centric database-style API for
+LutaML Models with model registry, polymorphic support, and composite model
+relationships.
+
+It offers a unified interface for storing and retrieving complex model
+hierarchies across different storage backends, making it ideal for applications
+that need sophisticated object persistence with database-like operations.
+
+== Features
+
+* Store-centric API design with all persistence operations through the store
+
+* Model registry system with configurable key fields
+
+* Polymorphic model support with inheritance handling
+
+* Composite model relationships (nested registered models stored independently)
+
+* Database-style CRUD operations (fetch, save, update, destroy)
+
+* Dot notation for nested updates ("studio.location")
+
+* Both block-based and hash-based update patterns
+
+* Multiple storage backends: Memory, FileSystem, and SQLite
+
+* Thread-safe operations across all backends
+
+* Event system with synchronous and asynchronous handling
+
+* Performance monitoring and error tracking
+
+== Installation
+
+Add this line to your application's Gemfile:
+
+[source,ruby]
+----
+gem 'lutaml-store'
+----
+
+And then execute:
+
+[source,sh]
+----
+$ bundle install
+----
+
+Or install it yourself as:
+
+[source,sh]
+----
+$ gem install lutaml-store
+----
+
+For SQLite backend support, also add:
+
+[source,ruby]
+----
+gem 'sqlite3'
+----
+
+== Quick start
+
+Here's a minimal example to get you started:
+
+[source,ruby]
+----
+require 'lutaml/model'
+require 'lutaml/store'
+
+# Define your models
+class Studio < Lutaml::Model::Serializable
+  attribute :studio_key, :string
+  attribute :name, :string
+  attribute :location, :string
+end
+
+class PotteryClass < Lutaml::Model::Serializable
+  attribute :studio, Studio
+  attribute :class_id, :string
+  attribute :description, :string
+end
+
+# Create a store with model registry
+store = Lutaml::Store.new(
+  adapter: :memory,
+  models: [
+    { model: PotteryClass, key: :class_id },
+    { model: Studio, key: :studio_key }
+  ]
+)
+
+# Create and save models
+pottery_class = PotteryClass.new(
+  class_id: "pottery_101",
+  studio: Studio.new(studio_key: "main_studio", name: "Main Studio"),
+  description: "Beginner pottery class"
+)
+
+store.save(pottery_class)
+
+# Fetch models
+retrieved = store.fetch(model: PotteryClass, class_id: "pottery_101")
+puts retrieved.studio.name # => "Main Studio"
+
+# Update models
+store.update(
+  model: PotteryClass,
+  class_id: "pottery_101",
+  attributes: [
+    { key: :description, value: "Advanced pottery class" },
+    { key: "studio.location", value: "Building A" }
+  ]
+)
+----
+
+== Architecture overview
+
+Lutaml::Store implements a store-centric architecture where all persistence
+operations flow through a central store that manages model registrations,
+relationships, and storage backends.
+
+=== Core components
+
+The library is organized into these main components:
+
+`Lutaml::Store`::
+Main entry point providing the store-centric API with model registry support.
+Handles model registration, polymorphic relationships, and composite model
+management.
+
+`Lutaml::Store::ModelRegistry`::
+Manages registered models with their key fields and polymorphic configurations.
+Validates model registrations and provides model lookup capabilities.
+
+`Lutaml::Store::CompositeModelHandler`::
+Handles relationships between registered models, storing composite models
+independently while maintaining references and ensuring referential integrity.
+
+`Lutaml::Store::AttributeUpdater`::
+Processes model updates including dot notation for nested attributes, block-based
+updates, and polymorphic model changes.
+
+`Lutaml::Store::Store`::
+Low-level storage interface providing unified key-value operations across all
+backends with caching, events, and monitoring integration.
+
+=== Storage backends
+
+`Memory Backend`::
+Fast in-memory storage ideal for caching, testing, and temporary data with
+volatile persistence characteristics.
+
+`FileSystem Backend`::
+Persistent file-based storage with directory organization suitable for
+moderate data volumes and development environments.
+
+`SQLite Backend`::
+Database storage with ACID compliance, transaction support, and durability
+for production applications requiring data integrity.
+
+== Model registry system
+
+The model registry is the foundation of Lutaml::Store's sophisticated
+persistence capabilities. It allows you to register models with their unique
+key fields and configure polymorphic relationships.
+
+=== Basic model registration
+
+Register models by specifying the model class and its unique key field:
+
+[source,ruby]
+----
+store = Lutaml::Store.new(
+  adapter: :memory,
+  models: [
+    { model: User, key: :user_id },
+    { model: Post, key: :post_id },
+    { model: Comment, key: :comment_id }
+  ]
+)
+----
+
+[example]
+====
+Model registration with validation:
+
+[source,ruby]
+----
+class User < Lutaml::Model::Serializable
+  attribute :user_id, :string
+  attribute :name, :string
+  attribute :email, :string
+end
+
+# The key field must exist as an attribute
+store = Lutaml::Store.new(
+  adapter: :memory,
+  models: [
+    { model: User, key: :user_id }  # ✓ Valid - user_id exists
+    # { model: User, key: :invalid }  # ✗ Error - invalid doesn't exist
+  ]
+)
+----
+====
+
+=== Polymorphic model registration
+
+For models with inheritance hierarchies, use polymorphic registration:
+
+[source,ruby]
+----
+class Studio < Lutaml::Model::Serializable
+  attribute :studio_key, :string
+  attribute :name, :string
+  attribute :_class, :string, default: -> { "Studio" }, polymorphic_class: true
+end
+
+class CeramicStudio < Studio
+  attribute :clay_type, :string
+  attribute :_class, :string, default: -> { "CeramicStudio" }
+end
+
+store = Lutaml::Store.new(
+  adapter: :memory,
+  models: [
+    {
+      model: Studio,
+      key: :studio_key,
+      polymorphic_class_key: :_class
+    }
+    # CeramicStudio inherits from Studio, so no separate registration needed
+  ]
+)
+----
+
+[example]
+====
+Polymorphic model usage:
+
+[source,ruby]
+----
+# Save different types of studios
+regular_studio = Studio.new(studio_key: "studio1", name: "Regular Studio")
+ceramic_studio = CeramicStudio.new(
+  studio_key: "studio2",
+  name: "Ceramic Studio",
+  clay_type: "Porcelain"
+)
+
+store.save([regular_studio, ceramic_studio])
+
+# Fetch returns correct subclass
+retrieved = store.fetch(model: Studio, studio_key: "studio2")
+puts retrieved.class.name # => "CeramicStudio"
+puts retrieved.clay_type  # => "Porcelain"
+----
+====
+
+=== Composite model relationships
+
+When registered models are nested within other registered models, they are
+stored independently while maintaining references:
+
+[source,ruby]
+----
+class PotteryClass < Lutaml::Model::Serializable
+  attribute :studio, Studio  # Studio is also registered
+  attribute :class_id, :string
+  attribute :description, :string
+end
+
+store = Lutaml::Store.new(
+  adapter: :memory,
+  models: [
+    { model: PotteryClass, key: :class_id },
+    { model: Studio, key: :studio_key }
+  ]
+)
+
+# Both PotteryClass and its nested Studio are stored independently
+pottery_class = PotteryClass.new(
+  class_id: "pottery_101",
+  studio: Studio.new(studio_key: "main_studio", name: "Main Studio"),
+  description: "Pottery class"
+)
+
+store.save(pottery_class)
+
+# Studio can be fetched independently
+studio = store.fetch(model: Studio, studio_key: "main_studio")
+puts studio.name # => "Main Studio"
+
+# PotteryClass maintains reference to Studio
+pottery = store.fetch(model: PotteryClass, class_id: "pottery_101")
+puts pottery.studio.name # => "Main Studio"
+----
+
+== CRUD operations
+
+Lutaml::Store provides database-style CRUD operations for registered models.
+
+=== Save operations
+
+Save single models or arrays of models:
+
+[source,ruby]
+----
+# Save single model
+user = User.new(user_id: "user1", name: "John Doe")
+store.save(user)
+
+# Save array of models
+users = [
+  User.new(user_id: "user2", name: "Jane Smith"),
+  User.new(user_id: "user3", name: "Bob Johnson")
+]
+store.save(users)
+----
+
+[example]
+====
+Saving models with composite relationships:
+
+[source,ruby]
+----
+pottery_classes = [
+  PotteryClass.new(
+    class_id: "pottery_101",
+    studio: Studio.new(studio_key: "studio1", name: "Main Studio"),
+    description: "Beginner class"
+  ),
+  PotteryClass.new(
+    class_id: "pottery_201",
+    studio: Studio.new(studio_key: "studio2", name: "Advanced Studio"),
+    description: "Advanced class"
+  )
+]
+
+# Saves both PotteryClass instances and their nested Studio instances
+store.save(pottery_classes)
+
+# Studios are now available independently
+studio1 = store.fetch(model: Studio, studio_key: "studio1")
+studio2 = store.fetch(model: Studio, studio_key: "studio2")
+----
+====
+
+=== Fetch operations
+
+Retrieve models by their registered key fields:
+
+[source,ruby]
+----
+# Fetch by key field name and value
+user = store.fetch(model: User, user_id: "user1")
+pottery_class = store.fetch(model: PotteryClass, class_id: "pottery_101")
+studio = store.fetch(model: Studio, studio_key: "main_studio")
+----
+
+[example]
+====
+Fetching polymorphic models:
+
+[source,ruby]
+----
+# Save different studio types
+regular_studio = Studio.new(studio_key: "studio1", name: "Regular")
+ceramic_studio = CeramicStudio.new(
+  studio_key: "studio2",
+  name: "Ceramic",
+  clay_type: "Stoneware"
+)
+
+store.save([regular_studio, ceramic_studio])
+
+# Fetch returns correct polymorphic type
+studio1 = store.fetch(model: Studio, studio_key: "studio1")
+puts studio1.class.name # => "Studio"
+
+studio2 = store.fetch(model: Studio, studio_key: "studio2")
+puts studio2.class.name # => "CeramicStudio"
+puts studio2.clay_type  # => "Stoneware"
+----
+====
+
+=== Update operations
+
+Update models using attribute arrays, dot notation, or blocks:
+
+==== Attribute array updates
+
+[source,ruby]
+----
+store.update(
+  model: User,
+  user_id: "user1",
+  attributes: [
+    { key: :name, value: "John Smith" },
+    { key: :email, value: "john.smith@example.com" }
+  ]
+)
+----
+
+==== Dot notation for nested updates
+
+[source,ruby]
+----
+store.update(
+  model: PotteryClass,
+  class_id: "pottery_101",
+  attributes: [
+    { key: :description, value: "Updated description" },
+    { key: "studio.location", value: "Building A, Room 101" },
+    { key: "studio.name", value: "Updated Studio Name" }
+  ]
+)
+----
+
+[example]
+====
+Complex nested updates:
+
+[source,ruby]
+----
+# Update multiple nested attributes
+store.update(
+  model: PotteryClass,
+  class_id: "pottery_101",
+  attributes: [
+    { key: :description, value: "Advanced pottery techniques" },
+    { key: "studio.name", value: "Master Pottery Studio" },
+    { key: "studio.location", value: "Downtown Arts District" }
+  ]
+)
+
+# Verify updates
+pottery_class = store.fetch(model: PotteryClass, class_id: "pottery_101")
+puts pottery_class.description      # => "Advanced pottery techniques"
+puts pottery_class.studio.name      # => "Master Pottery Studio"
+puts pottery_class.studio.location  # => "Downtown Arts District"
+----
+====
+
+==== Block-based updates
+
+[source,ruby]
+----
+store.update(model: User, user_id: "user1") do |user|
+  user.name = "Updated Name"
+  user.email = "updated@example.com"
+end
+----
+
+==== Polymorphic model updates
+
+Change model types by updating with different polymorphic instances:
+
+[source,ruby]
+----
+# Change Studio to CeramicStudio
+store.update(
+  model: PotteryClass,
+  class_id: "pottery_101",
+  attributes: [
+    {
+      key: :studio,
+      value: CeramicStudio.new(
+        studio_key: "main_studio",  # Same key, different type
+        name: "Ceramic Arts Studio",
+        clay_type: "Porcelain"
+      )
+    }
+  ]
+)
+
+# Fetch returns updated polymorphic type
+pottery_class = store.fetch(model: PotteryClass, class_id: "pottery_101")
+puts pottery_class.studio.class.name # => "CeramicStudio"
+puts pottery_class.studio.clay_type  # => "Porcelain"
+----
+
+=== Destroy operations
+
+Delete models by their key fields:
+
+[source,ruby]
+----
+# Delete single model
+store.destroy(model: User, user_id: "user1")
+
+# Delete model with composite relationships
+store.destroy(model: PotteryClass, class_id: "pottery_101")
+# Note: Nested Studio remains unless explicitly deleted
+----
+
+[example]
+====
+Managing composite model deletion:
+
+[source,ruby]
+----
+# Delete pottery class but keep studio
+store.destroy(model: PotteryClass, class_id: "pottery_101")
+
+# Studio still exists independently
+studio = store.fetch(model: Studio, studio_key: "main_studio")
+puts studio.name # => Still accessible
+
+# Delete studio separately if needed
+store.destroy(model: Studio, studio_key: "main_studio")
+----
+====
+
+== Advanced features
+
+=== Polymorphic inheritance handling
+
+Lutaml::Store automatically handles polymorphic inheritance chains, storing
+and retrieving the correct subclass instances:
+
+[source,ruby]
+----
+class Vehicle < Lutaml::Model::Serializable
+  attribute :vehicle_id, :string
+  attribute :make, :string
+  attribute :_type, :string, default: -> { "Vehicle" }, polymorphic_class: true
+end
+
+class Car < Vehicle
+  attribute :doors, :integer
+  attribute :_type, :string, default: -> { "Car" }
+end
+
+class Truck < Vehicle
+  attribute :payload, :integer
+  attribute :_type, :string, default: -> { "Truck" }
+end
+
+store = Lutaml::Store.new(
+  adapter: :memory,
+  models: [
+    { model: Vehicle, key: :vehicle_id, polymorphic_class_key: :_type }
+  ]
+)
+----
+
+[example]
+====
+Polymorphic inheritance in action:
+
+[source,ruby]
+----
+# Save different vehicle types
+vehicles = [
+  Car.new(vehicle_id: "car1", make: "Toyota", doors: 4),
+  Truck.new(vehicle_id: "truck1", make: "Ford", payload: 2000),
+  Vehicle.new(vehicle_id: "vehicle1", make: "Generic")
+]
+
+store.save(vehicles)
+
+# Fetch returns correct subclass
+car = store.fetch(model: Vehicle, vehicle_id: "car1")
+puts car.class.name # => "Car"
+puts car.doors      # => 4
+
+truck = store.fetch(model: Vehicle, vehicle_id: "truck1")
+puts truck.class.name # => "Truck"
+puts truck.payload    # => 2000
+----
+====
+
+=== Composite model reference management
+
+When registered models contain other registered models, Lutaml::Store manages
+the relationships automatically:
+
+[source,ruby]
+----
+class Order < Lutaml::Model::Serializable
+  attribute :order_id, :string
+  attribute :customer, User      # User is registered
+  attribute :items, [Product]    # Product is registered
+  attribute :total, :decimal
+end
+
+store = Lutaml::Store.new(
+  adapter: :memory,
+  models: [
+    { model: Order, key: :order_id },
+    { model: User, key: :user_id },
+    { model: Product, key: :product_id }
+  ]
+)
+----
+
+[example]
+====
+Composite model relationships:
+
+[source,ruby]
+----
+# Create order with nested registered models
+order = Order.new(
+  order_id: "order1",
+  customer: User.new(user_id: "user1", name: "John Doe"),
+  items: [
+    Product.new(product_id: "prod1", name: "Widget", price: 10.00),
+    Product.new(product_id: "prod2", name: "Gadget", price: 15.00)
+  ],
+  total: 25.00
+)
+
+store.save(order)
+
+# All models are stored independently
+customer = store.fetch(model: User, user_id: "user1")
+product1 = store.fetch(model: Product, product_id: "prod1")
+product2 = store.fetch(model: Product, product_id: "prod2")
+
+# Order maintains references to all nested models
+retrieved_order = store.fetch(model: Order, order_id: "order1")
+puts retrieved_order.customer.name    # => "John Doe"
+puts retrieved_order.items.first.name # => "Widget"
+----
+====
+
+=== Nested attribute updates with dot notation
+
+Update deeply nested attributes using dot notation:
+
+[source,ruby]
+----
+# Update nested attributes
+store.update(
+  model: Order,
+  order_id: "order1",
+  attributes: [
+    { key: "customer.name", value: "Jane Doe" },
+    { key: "customer.email", value: "jane@example.com" },
+    { key: "items.0.price", value: 12.00 },  # Update first item price
+    { key: :total, value: 27.00 }
+  ]
+)
+----
+
+[example]
+====
+Complex nested updates:
+
+[source,ruby]
+----
+# Multi-level nested updates
+store.update(
+  model: PotteryClass,
+  class_id: "pottery_101",
+  attributes: [
+    { key: "studio.name", value: "New Studio Name" },
+    { key: "studio.location", value: "New Location" }
+  ]
+)
+
+# Updates are reflected in both the parent and the independently stored model
+pottery_class = store.fetch(model: PotteryClass, class_id: "pottery_101")
+studio = store.fetch(model: Studio, studio_key: pottery_class.studio.studio_key)
+
+puts pottery_class.studio.name # => "New Studio Name"
+puts studio.name               # => "New Studio Name" (same instance)
+----
+====
+
+== Storage backends
+
+Lutaml::Store supports multiple storage backends, each optimized for different
+use cases and requirements.
+
+=== Memory backend
+
+Fast in-memory storage ideal for testing, caching, and temporary data:
+
+[source,ruby]
+----
+store = Lutaml::Store.new(
+  adapter: :memory,
+  models: [
+    { model: User, key: :user_id }
+  ]
+)
+----
+
+**Characteristics:**
+
+* Fastest performance for all operations
+
+* Volatile storage (data lost when process ends)
+
+* No persistence across application restarts
+
+* Ideal for testing and caching scenarios
+
+=== FileSystem backend
+
+Persistent file-based storage with directory organization:
+
+[source,ruby]
+----
+store = Lutaml::Store.new(
+  adapter: {
+    type: :filesystem,
+    path: "./data/store",
+    extension: "json"
+  },
+  models: [
+    { model: User, key: :user_id }
+  ]
+)
+----
+
+**Characteristics:**
+
+* Persistent storage across application restarts
+
+* Human-readable file format (JSON by default)
+
+* Good for development and moderate data volumes
+
+* Directory-based organization for easy browsing
+
+[example]
+====
+FileSystem backend configuration:
+
+[source,ruby]
+----
+store = Lutaml::Store.new(
+  adapter: {
+    type: :filesystem,
+    path: "/var/app/data",
+    extension: "dat",
+    create_directories: true
+  },
+  models: [
+    { model: User, key: :user_id },
+    { model: Post, key: :post_id }
+  ]
+)
+
+# Files are organized by model type:
+# /var/app/data/User/user1.dat
+# /var/app/data/User/user2.dat
+# /var/app/data/Post/post1.dat
+----
+====
+
+=== SQLite backend
+
+Database storage with ACID compliance and transaction support:
+
+[source,ruby]
+----
+store = Lutaml::Store.new(
+  adapter: {
+    type: :sqlite,
+    path: "./data/store.db"
+  },
+  models: [
+    { model: User, key: :user_id }
+  ]
+)
+----
+
+**Characteristics:**
+
+* ACID compliance with transaction support
+
+* Excellent durability and data integrity
+
+* Suitable for production applications
+
+* SQL query capabilities (future enhancement)
+
+[example]
+====
+SQLite backend with advanced options:
+
+[source,ruby]
+----
+store = Lutaml::Store.new(
+  adapter: {
+    type: :sqlite,
+    path: "/var/app/data/production.db",
+    options: {
+      journal_mode: "WAL",
+      synchronous: "NORMAL",
+      cache_size: 10000
+    }
+  },
+  models: [
+    { model: User, key: :user_id },
+    { model: Order, key: :order_id }
+  ]
+)
+----
+====
+
+== Configuration and customization
+
+=== Programmatic configuration
+
+Configure stores programmatically with full control over all options:
+
+[source,ruby]
+----
+store = Lutaml::Store.new(
+  adapter: {
+    type: :filesystem,
+    path: "./data",
+    extension: "json"
+  },
+  models: [
+    { model: User, key: :user_id },
+    {
+      model: Studio,
+      key: :studio_key,
+      polymorphic_class_key: :_class
+    }
+  ],
+  cache: {
+    enabled: true,
+    max_size: 1000,
+    ttl: 3600
+  },
+  monitoring: {
+    enabled: true
+  },
+  events: {
+    async: false
+  }
+)
+----
+
+=== YAML configuration
+
+Use YAML files for environment-specific configurations:
+
+[source,yaml]
+----
+# config/store.yml
+development:
+  adapter:
+    type: filesystem
+    path: ./tmp/store
+    extension: json
+  models:
+    - model: User
+      key: user_id
+    - model: Studio
+      key: studio_key
+      polymorphic_class_key: _class
+  cache:
+    enabled: true
+    max_size: 100
+    ttl: 1800
+
+production:
+  adapter:
+    type: sqlite
+    path: /var/app/data/store.db
+  models:
+    - model: User
+      key: user_id
+    - model: Studio
+      key: studio_key
+      polymorphic_class_key: _class
+  cache:
+    enabled: true
+    max_size: 10000
+    ttl: 3600
+  monitoring:
+    enabled: true
+----
+
+[example]
+====
+Loading YAML configuration:
+
+[source,ruby]
+----
+# Load environment-specific configuration
+config = YAML.load_file("config/store.yml")[Rails.env]
+
+# Convert model configurations to proper format
+models = config["models"].map do |model_config|
+  {
+    model: model_config["model"].constantize,
+    key: model_config["key"].to_sym,
+    polymorphic_class_key: model_config["polymorphic_class_key"]&.to_sym
+  }.compact
+end
+
+store = Lutaml::Store.new(
+  adapter: config["adapter"],
+  models: models,
+  cache: config["cache"],
+  monitoring: config["monitoring"]
+)
+----
+====
+
+== Event system
+
+Lutaml::Store provides a comprehensive event system for monitoring and reacting
+to store operations.
+
+=== Available events
+
+The store emits events for all major operations:
+
+* `:model_save` - When models are saved
+
+* `:model_fetch` - When models are fetched
+
+* `:model_update` - When models are updated
+
+* `:model_destroy` - When models are destroyed
+
+* `:composite_model_stored` - When composite models are stored independently
+
+* `:polymorphic_model_resolved` - When polymorphic models are resolved
+
+=== Event listeners
+
+Register event listeners to react to store operations:
+
+[source,ruby]
+----
+# Register event listeners
+store.on(:model_save) do |event_data|
+  puts "Saved #{event_data[:model].class.name} with key #{event_data[:key]}"
+end
+
+store.on(:model_update) do |event_data|
+  puts "Updated #{event_data[:model].class.name}: #{event_data[:changes]}"
+end
+
+store.on(:model_fetch) do |event_data|
+  puts "Fetched #{event_data[:model].class.name} from #{event_data[:source]}"
+end
+----
+
+[example]
+====
+Comprehensive event monitoring:
+
+[source,ruby]
+----
+# Audit trail implementation
+audit_log = []
+
+store.on(:model_save) do |data|
+  audit_log << {
+    action: :save,
+    model: data[:model].class.name,
+    key: data[:key],
+    timestamp: Time.now
+  }
+end
+
+store.on(:model_update) do |data|
+  audit_log << {
+    action: :update,
+    model: data[:model].class.name,
+    key: data[:key],
+    changes: data[:changes],
+    timestamp: Time.now
+  }
+end
+
+# Use the store
+user = User.new(user_id: "user1", name: "John")
+store.save(user)
+
+store.update(model: User, user_id: "user1") do |u|
+  u.name = "Jane"
+end
+
+puts audit_log
+# => [
+#   { action: :save, model: "User", key: "user1", timestamp: ... },
+#   { action: :update, model: "User", key: "user1", changes: {...}, timestamp: ... }
+# ]
+----
+====
+
+== Performance and monitoring
+
+=== Performance characteristics
+
+Different backends have different performance profiles:
+
+**Memory Backend:**
+
+* Read: O(1) - Hash lookup
+
+* Write: O(1) - Hash assignment
+
+* Memory usage: All data in RAM
+
+**FileSystem Backend:**
+
+* Read: O(1) + file I/O
+
+* Write: O(1) + file I/O + serialization
+
+* Memory usage: Minimal (data on disk)
+
+**SQLite Backend:**
+
+* Read: O(log n) - B-tree lookup
+
+* Write: O(log n) + transaction overhead
+
+* Memory usage: Configurable cache + minimal
+
+=== Monitoring and statistics
+
+Enable monitoring to track performance and usage:
+
+[source,ruby]
+----
+store = Lutaml::Store.new(
+  adapter: :memory,
+  models: [{ model: User, key: :user_id }],
+  monitoring: { enabled: true }
+)
+
+# Get comprehensive statistics
+stats = store.stats
+puts stats
+# => {
+#   models_registered: 1,
+#   total_operations: 150,
+#   operations: {
+#     save: 50,
+#     fetch: 80,
+#     update: 15,
+#     destroy: 5
+#   },
+#   performance: {
+#     save: { avg: 0.001, min: 0.0005, max: 0.002 },
+#     fetch: { avg: 0.0008, min: 0.0003, max: 0.0015 }
+#   },
+#   backend: "Memory",
+#   cache_hit_rate: 0.75
+# }
+----
+
+[example]
+====
+Performance monitoring in production:
+
+[source,ruby]
+----
+# Monitor cache performance
+store.on(:cache_miss) do |data|
+  metrics.increment("store.cache.miss", tags: ["model:#{data[:model]}"])
+end
+
+store.on(:cache_hit) do |data|
+  metrics.increment("store.cache.hit", tags: ["model:#{data[:model]}"])
+end
+----
+====
+
+== Error handling
+
+Lutaml::Store defines specific error types for different failure scenarios:
+
+=== Error types
+
+`Lutaml::Store::ModelNotRegisteredError`::
+Raised when attempting operations on unregistered models.
+
+`Lutaml::Store::InvalidKeyError`::
+Raised when key field doesn't exist on model or key value is nil.
+
+`Lutaml::Store::PolymorphicUpdateError`::
+Raised when polymorphic model updates fail due to type conflicts.
+
+`Lutaml::Store::CompositeModelError`::
+Raised when composite model handling encounters issues.
+
+`Lutaml::Store::ConfigurationError`::
+Raised for invalid store or adapter configurations.
+
+=== Error handling patterns
+
+[source,ruby]
+----
+begin
+  store = Lutaml::Store.new(
+    adapter: :memory,
+    models: [
+      { model: User, key: :invalid_field }  # Field doesn't exist
+    ]
+  )
+rescue Lutaml::Store::ConfigurationError => e
+  puts "Configuration error: #{e.message}"
+end
+
+begin
+  # Try to fetch unregistered model
+  result = store.fetch(model: UnregisteredModel, id: "test")
+rescue Lutaml::Store::ModelNotRegisteredError => e
+  puts "Model not registered: #{e.message}"
+end
+----
+
+[example]
+====
+Comprehensive error handling:
+
+[source,ruby]
+----
+def safe_store_operation
+  yield
+rescue Lutaml::Store::ModelNotRegisteredError => e
+  logger.error "Unregistered model: #{e.message}"
+  { error: "Model not found", details: e.message }
+rescue Lutaml::Store::InvalidKeyError => e
+  logger.error "Invalid key: #{e.message}"
+  { error: "Invalid key", details: e.message }
+rescue Lutaml::Store::ConfigurationError => e
+  logger.error "Configuration error: #{e.message}"
+  { error: "Configuration issue", details: e.message }
+rescue => e
+  logger.error "Unexpected error: #{e.message}"
+  { error: "Internal error", details: e.message }
+end
+----
+====
+
+== Thread safety
+
+All Lutaml::Store operations are thread-safe across all backends:
+
+[source,ruby]
+----
+store = Lutaml::Store.new(
+  adapter: :memory,
+  models: [{ model: User, key: :user_id }]
+)
+
+# Safe to use from multiple threads
+threads = 10.times.map do |i|
+  Thread.new do
+    user = User.new(user_id: "user#{i}", name: "User #{i}")
+    store.save(user)
+    retrieved = store.fetch(model: User, user_id: "user#{i}")
+    puts "Thread #{i}: #{retrieved.name}"
+  end
+end
+
+threads.each(&:join)
+----
+
+[example]
+Concurrent operations with different models:
+
+[source,ruby]
+----
+store = Lutaml::Store.new(
+  adapter: :sqlite,
+  models: [
+    { model: User, key: :user_id },
+    { model: Post, key: :post_id }
+  ]
+)
+
+# Multiple threads can safely operate on different models
+user_thread = Thread.new do
+  100.times do |i|
+    user = User.new(user_id: "user#{i}", name: "User #{i}")
+    store.save(user)
+  end
+end
+
+post_thread = Thread.new do
+  100.times do |i|
+    post = Post.new(post_id: "post#{i}", title: "Post #{i}")
+    store.save(post)
+  end
+end
+
+[user_thread, post_thread].each(&:join)
+----
+
+
+== Development
+
+After checking out the repo, run:
+
+[source,sh]
+----
+bin/setup           # Install dependencies
+bundle exec rspec   # Run tests
+bundle exec rubocop # Run linting
+----
+
+To install this gem onto your local machine, run:
+
+[source,sh]
+----
+bundle exec rake install
+----
+
+To release a new version, update the version number in `version.rb`, and then run:
+
+[source,sh]
+----
+bundle exec rake release
+----
+
+== Contributing
+
+Bug reports and pull requests are welcome on GitHub at
+https://github.com/lutaml/lutaml-store.
+
+This project is intended to be a safe, welcoming space for collaboration, and
+contributors are expected to adhere to the
+https://github.com/lutaml/lutaml-store/blob/main/CODE_OF_CONDUCT.md[code of conduct].
+
+== License and copyright
+
+This project is licensed under the MIT License.
+See the link:LICENSE[] file for details.
+
+Copyright Ribose.

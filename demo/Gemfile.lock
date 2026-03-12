@@ -1,0 +1,61 @@
+PATH
+  remote: ..
+  specs:
+    lutaml-store (0.1.0)
+
+GEM
+  remote: https://rubygems.org/
+  specs:
+    csv (3.3.5)
+    ffi (1.17.2)
+    ffi (1.17.2-aarch64-linux-gnu)
+    ffi (1.17.2-aarch64-linux-musl)
+    ffi (1.17.2-arm-linux-gnu)
+    ffi (1.17.2-arm-linux-musl)
+    ffi (1.17.2-arm64-darwin)
+    ffi (1.17.2-x86-linux-gnu)
+    ffi (1.17.2-x86-linux-musl)
+    ffi (1.17.2-x86_64-darwin)
+    ffi (1.17.2-x86_64-linux-gnu)
+    ffi (1.17.2-x86_64-linux-musl)
+    memo_wise (1.13.0)
+    paint (2.3.0)
+    rake (13.3.0)
+    sqlite3 (1.7.3-aarch64-linux)
+    sqlite3 (1.7.3-arm-linux)
+    sqlite3 (1.7.3-arm64-darwin)
+    sqlite3 (1.7.3-x86-linux)
+    sqlite3 (1.7.3-x86_64-darwin)
+    sqlite3 (1.7.3-x86_64-linux)
+    table_tennis (0.0.6)
+      csv (~> 3.3)
+      ffi (~> 1.17)
+      memo_wise (~> 1.11)
+      paint (~> 2.3)
+      unicode-display_width (~> 3.1)
+    unicode-display_width (3.1.4)
+      unicode-emoji (~> 4.0, >= 4.0.4)
+    unicode-emoji (4.0.4)
+
+PLATFORMS
+  aarch64-linux-gnu
+  aarch64-linux-musl
+  arm-linux-gnu
+  arm-linux-musl
+  arm64-darwin
+  x86-linux-gnu
+  x86-linux-musl
+  x86_64-darwin
+  x86_64-linux-gnu
+  x86_64-linux-musl
+
+DEPENDENCIES
+  bundler (~> 2.0)
+  lutaml-store!
+  paint (~> 2.3)
+  rake (~> 13.0)
+  sqlite3 (~> 1.4)
+  table_tennis (~> 0.0.6)
+
+BUNDLED WITH
+   2.6.9

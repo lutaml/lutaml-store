@@ -1,0 +1,606 @@
+= Lutaml::Store database-style API implementation plan
+
+== Overview
+
+This document outlines the implementation plan for transforming Lutaml::Store
+from a basic key-value store into a sophisticated store-centric database-style
+API with model registry, polymorphic support, and composite model relationships.
+
+== Current state analysis
+
+=== Existing implementation
+
+The current Lutaml::Store provides:
+
+* Basic key-value operations (get, set, delete, exists)
+
+* Multiple storage adapters (memory, filesystem, sqlite)
+
+* ModelStore class with basic model serialization
+
+* Caching, monitoring, and event systems
+
+* Thread-safe operations
+
+=== Limitations
+
+The current implementation lacks:
+
+* Model registry system with configurable key fields
+
+* Polymorphic model support with inheritance handling
+
+* Composite model relationships (nested registered models stored independently)
+
+* Database-style CRUD operations (fetch, save, update, destroy)
+
+* Dot notation for nested updates ("studio.location")
+
+* Block-based and hash-based update patterns
+
+== Target API specification
+
+Based on sanity.rb requirements, the new API must support:
+
+[source,ruby]
+----
+# Store initialization with model registry
+store = Lutaml::Store.new(
+  adapter: :memory,
+  models: [
+    { model: PotteryClass, key: :class_id },
+    { model: Studio, key: :studio_key, polymorphic_class_key: :_class }
+  ]
+)
+
+# Save operations
+store.save(pottery_classes_array)
+
+# Fetch operations
+pottery_class = store.fetch(model: PotteryClass, class_id: "pottery_class")
+
+# Update operations with attributes
+store.update(
+  model: PotteryClass,
+  class_id: "clay_class",
+  attributes: [
+    { key: :description, value: "Updated description" },
+    { key: "studio.location", value: "Downtown" }
+  ]
+)
+
+# Polymorphic model updates
+store.save(
+  model: PotteryClass,
+  class_id: "pottery_class",
+  attributes: [
+    {
+      key: :studio,
+      value: CeramicStudio.new(
+        studio_key: "pottery_studio",
+        name: "Ceramic studio",
+        clay_type: "Stoneware"
+      )
+    }
+  ]
+)
+----
+
+== Implementation phases
+
+=== Phase 1: Core architecture redesign
+
+==== 1.1 New store entry point
+
+Create new main entry point that accepts model registry:
+
+* Modify `lib/lutaml/store.rb` to provide `Lutaml::Store.new` class method
+
+* Accept `adapter` and `models` parameters
+
+* Delegate to enhanced ModelStore for model operations
+
+* Maintain backward compatibility with existing Store class
+
+==== 1.2 Model registry system
+
+Implement model registration and metadata management:
+
+* Create `lib/lutaml/store/model_registry.rb`
+
+* Create `lib/lutaml/store/model_registration.rb`
+
+* Support model class, key field, and polymorphic_class_key configuration
+
+* Validate model registrations (key fields must exist)
+
+* Handle polymorphic inheritance chains
+
+==== 1.3 Composite model detection
+
+Implement composite model relationship handling:
+
+* Create `lib/lutaml/store/composite_model_handler.rb`
+
+* Detect when registered models are nested within other models
+
+* Track model relationships and references
+
+* Store composite models independently while maintaining references
+
+=== Phase 2: Database-style operations
+
+==== 2.1 CRUD operations
+
+Implement database-style model operations:
+
+* `fetch(model:, key_value)` - retrieve model by key
+
+* `save(model_or_array)` - save single model or array of models
+
+* `update(model:, key_value, attributes:)` - update with attributes or block
+
+* `destroy(model:, key_value)` - delete model
+
+* Support both single models and arrays
+
+==== 2.2 Update mechanisms
+
+Implement flexible update patterns:
+
+* Create `lib/lutaml/store/attribute_updater.rb`
+
+* Support attribute arrays with key/value pairs
+
+* Support dot notation for nested updates ("studio.location")
+
+* Support block-based updates with model yielding
+
+* Handle polymorphic model updates (changing model types)
+
+==== 2.3 Key generation and management
+
+Implement model key handling:
+
+* Extract key values from models using configured key fields
+
+* Generate storage keys with model namespacing
+
+* Handle polymorphic class keys for inheritance
+
+* Ensure unique keys across model types
+
+=== Phase 3: Advanced features
+
+==== 3.1 Polymorphic support
+
+Implement inheritance and polymorphic handling:
+
+* Detect polymorphic relationships using polymorphic_class_key
+
+* Store and retrieve correct subclass instances
+
+* Handle polymorphic updates that change model types
+
+* Maintain polymorphic class information in storage
+
+==== 3.2 Nested attribute updates
+
+Implement dot notation and nested updates:
+
+* Parse dot notation ("studio.location") into nested attribute paths
+
+* Navigate object graphs to update nested attributes
+
+* Support updates on composite registered models
+
+* Handle deep nesting and complex object structures
+
+==== 3.3 Reference management
+
+Implement model relationship tracking:
+
+* Track relationships between composite models
+
+* Update references when composite models change
+
+* Maintain referential integrity
+
+* Handle cascading updates for related models
+
+=== Phase 4: Integration and testing
+
+==== 4.1 Adapter integration
+
+Ensure compatibility with existing adapters:
+
+* Test all adapters (memory, filesystem, sqlite) with new operations
+
+* Maintain existing adapter interfaces
+
+* Update adapter implementations if needed
+
+* Preserve performance characteristics
+
+==== 4.2 Event system integration
+
+Integrate with existing event system:
+
+* Emit appropriate events for model operations
+
+* Maintain existing event patterns for compatibility
+
+* Add new events for model-specific operations
+
+* Support both sync and async event handling
+
+==== 4.3 Comprehensive testing
+
+Implement thorough test coverage:
+
+* Test all sanity.rb scenarios
+
+* Test polymorphic inheritance patterns
+
+* Test composite model relationships
+
+* Test nested updates with dot notation
+
+* Test error conditions and edge cases
+
+== Detailed implementation specifications
+
+=== Core classes to implement
+
+==== Lutaml::Store (main entry point)
+
+[source,ruby]
+----
+module Lutaml
+  module Store
+    def self.new(adapter:, models: [])
+      # Create enhanced ModelStore with registry
+      ModelStore.new(adapter: adapter, models: models)
+    end
+  end
+end
+----
+
+==== Lutaml::Store::ModelRegistry
+
+[source,ruby]
+----
+class ModelRegistry
+  def initialize(model_configs)
+    @registrations = {}
+    register_models(model_configs)
+  end
+
+  def register(model_class, key_field, options = {})
+    # Create ModelRegistration instance
+    # Validate key field exists on model
+    # Handle polymorphic_class_key option
+  end
+
+  def find_registration(model_class)
+    # Find registration for model class or superclass
+  end
+
+  def registered?(model_class)
+    # Check if model is registered
+  end
+end
+----
+
+==== Lutaml::Store::ModelRegistration
+
+[source,ruby]
+----
+class ModelRegistration
+  attr_reader :model_class, :key_field, :polymorphic_class_key
+
+  def initialize(model_class, key_field, options = {})
+    @model_class = model_class
+    @key_field = key_field
+    @polymorphic_class_key = options[:polymorphic_class_key]
+    validate!
+  end
+
+  def extract_key(model)
+    # Extract key value from model instance
+  end
+
+  def polymorphic?
+    # Check if registration supports polymorphism
+  end
+end
+----
+
+==== Lutaml::Store::CompositeModelHandler
+
+[source,ruby]
+----
+class CompositeModelHandler
+  def initialize(registry)
+    @registry = registry
+  end
+
+  def extract_composite_models(model)
+    # Find nested registered models
+    # Return hash of composite models with their keys
+  end
+
+  def store_composite_models(composite_models, store)
+    # Store each composite model independently
+  end
+
+  def resolve_composite_models(model, store)
+    # Replace composite model references with actual instances
+  end
+end
+----
+
+==== Lutaml::Store::AttributeUpdater
+
+[source,ruby]
+----
+class AttributeUpdater
+  def initialize(registry, store)
+    @registry = registry
+    @store = store
+  end
+
+  def update_attributes(model, attributes)
+    # Apply attribute updates to model
+    # Handle dot notation for nested updates
+    # Support polymorphic model changes
+  end
+
+  def parse_nested_path(path)
+    # Parse "studio.location" into ["studio", "location"]
+  end
+
+  def apply_nested_update(model, path_parts, value)
+    # Navigate object graph and apply update
+  end
+end
+----
+
+==== Enhanced Lutaml::Store::ModelStore
+
+[source,ruby]
+----
+class ModelStore
+  def initialize(adapter:, models: [])
+    @store = Store.new(adapter: adapter)
+    @registry = ModelRegistry.new(models)
+    @composite_handler = CompositeModelHandler.new(@registry)
+    @attribute_updater = AttributeUpdater.new(@registry, @store)
+  end
+
+  def save(model_or_array)
+    # Handle single model or array
+    # Extract and store composite models
+    # Generate storage keys
+    # Serialize and store models
+  end
+
+  def fetch(model:, **key_params)
+    # Extract key value from parameters
+    # Generate storage key
+    # Retrieve and deserialize model
+    # Resolve composite model references
+  end
+
+  def update(model:, attributes: nil, **key_params, &block)
+    # Fetch existing model
+    # Apply updates (attributes or block)
+    # Handle composite model updates
+    # Store updated model
+  end
+
+  def destroy(model:, **key_params)
+    # Generate storage key
+    # Delete model from store
+    # Handle composite model cleanup
+  end
+end
+----
+
+=== Storage key generation
+
+Model storage keys will follow this pattern:
+
+* Simple models: `"#{model_class_name}:#{key_value}"`
+
+* Polymorphic models: `"#{polymorphic_class}:#{key_value}"`
+
+* Composite models: Stored with their own keys, referenced by parent
+
+=== Serialization strategy
+
+* Use existing Serializer class for model serialization
+
+* Store polymorphic class information with model data
+
+* Handle composite model references during serialization/deserialization
+
+* Maintain compatibility with existing serialization formats
+
+=== Error handling
+
+Define specific error types:
+
+* `ModelNotRegisteredError` - when trying to operate on unregistered model
+
+* `InvalidKeyError` - when key field doesn't exist or is nil
+
+* `PolymorphicUpdateError` - when polymorphic update fails
+
+* `CompositeModelError` - when composite model handling fails
+
+== Migration strategy
+
+=== Backward compatibility
+
+* Maintain existing Store and ModelStore classes
+
+* Provide new entry point through `Lutaml::Store.new`
+
+* Existing code continues to work unchanged
+
+* Gradual migration path for users
+
+=== Deprecation plan
+
+* Mark old interfaces as deprecated in documentation
+
+* Provide migration examples in README
+
+* Plan removal in future major version
+
+* Clear upgrade path for all use cases
+
+== Testing strategy
+
+=== Unit tests
+
+* Test each new class in isolation
+
+* Mock dependencies for focused testing
+
+* Cover all error conditions
+
+* Test edge cases and boundary conditions
+
+=== Integration tests
+
+* Test complete workflows from sanity.rb
+
+* Test all adapter types with new operations
+
+* Test polymorphic inheritance scenarios
+
+* Test composite model relationships
+
+=== Performance tests
+
+* Benchmark new operations against current implementation
+
+* Ensure no performance regression
+
+* Test with large datasets
+
+* Profile memory usage
+
+== Documentation updates
+
+=== README.adoc
+
+Complete rewrite following documentation formatting rules:
+
+* Sentence-case headings
+
+* Proper list formatting with blank lines
+
+* Example blocks with `[example]` and `====`
+
+* Source code blocks with `[source,{lang}]` and `----`
+
+* Line wrapping at 80 characters
+
+* Comprehensive API documentation with examples
+
+=== API documentation
+
+* Document all new classes and methods
+
+* Provide usage examples for each operation
+
+* Document error conditions and handling
+
+* Include migration guide from old API
+
+== Implementation timeline
+
+=== Week 1: Core architecture
+
+* Implement ModelRegistry and ModelRegistration
+
+* Create new Store entry point
+
+* Basic model save/fetch operations
+
+=== Week 2: Update mechanisms
+
+* Implement AttributeUpdater
+
+* Support dot notation updates
+
+* Block-based updates
+
+* Polymorphic model updates
+
+=== Week 3: Composite models
+
+* Implement CompositeModelHandler
+
+* Nested model detection and storage
+
+* Reference resolution
+
+* Relationship management
+
+=== Week 4: Integration and testing
+
+* Comprehensive test suite
+
+* Documentation updates
+
+* Performance optimization
+
+* Bug fixes and refinements
+
+== Success criteria
+
+The implementation will be considered successful when:
+
+* All sanity.rb scenarios work correctly
+
+* Existing tests continue to pass
+
+* New comprehensive test suite passes
+
+* Documentation is complete and accurate
+
+* Performance is maintained or improved
+
+* Migration path is clear and documented
+
+== Risk mitigation
+
+=== Technical risks
+
+* **Complexity**: Break down into small, testable components
+
+* **Performance**: Benchmark and optimize critical paths
+
+* **Compatibility**: Maintain existing interfaces during transition
+
+=== Project risks
+
+* **Scope creep**: Stick to sanity.rb requirements
+
+* **Timeline**: Prioritize core functionality first
+
+* **Quality**: Comprehensive testing at each phase
+
+== Conclusion
+
+This implementation plan provides a clear roadmap for transforming Lutaml::Store
+into a sophisticated database-style API while maintaining backward compatibility
+and ensuring high quality through comprehensive testing and documentation.
+
+The phased approach allows for incremental development and testing, reducing
+risk and ensuring each component works correctly before moving to the next
+phase.

@@ -32,6 +32,9 @@ Gem::Specification.new do |spec|
   spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
 
+  # Runtime dependencies
+  spec.add_dependency "lutaml-model", "~> 0.3"
+
   # Optional dependencies for specific backends
   spec.add_development_dependency "sqlite3", "~> 1.4"
 

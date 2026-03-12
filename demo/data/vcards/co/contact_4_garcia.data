@@ -1,0 +1,1 @@
+{:version=>"4.0", :fn=>"Maria Garcia", :n=>{:family=>"Garcia", :given=>"Maria", :additional=>nil, :prefix=>nil, :suffix=>nil}, :tel=>[{:value=>"+1-555-0104", :type=>"mobile", :pref=>nil}], :email=>["maria.garcia@startup.com"], :org=>"Innovation Labs", :bday=>{:value=>"1988-02-14"}, :uid=>"922c2f06-cabe-41e5-b414-cc2e04609395"}

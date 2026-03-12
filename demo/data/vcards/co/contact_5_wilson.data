@@ -1,0 +1,1 @@
+{:version=>"4.0", :fn=>"David Wilson", :n=>{:family=>"Wilson", :given=>"David", :additional=>nil, :prefix=>nil, :suffix=>nil}, :tel=>[{:value=>"+1-555-0105", :type=>"work", :pref=>nil}], :email=>["david.wilson@consulting.com"], :org=>"Wilson Consulting", :bday=>{:value=>"1982-09-30"}, :uid=>"e16ad469-d63f-4e6b-b8fd-f04f9302c282"}

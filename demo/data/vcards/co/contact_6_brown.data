@@ -1,0 +1,1 @@
+{:version=>"4.0", :fn=>"Sarah Brown", :n=>{:family=>"Brown", :given=>"Sarah", :additional=>nil, :prefix=>nil, :suffix=>nil}, :tel=>[{:value=>"+1-555-0106", :type=>"work", :pref=>nil}], :email=>["sarah.brown@university.edu", "s.brown@research.org"], :org=>"State University", :bday=>{:value=>"1979-12-03"}, :uid=>"136c8cc8-b4cc-431b-b74a-6dd0defefdfd"}
