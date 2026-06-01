@@ -154,12 +154,12 @@ RSpec.describe Lutaml::Store::CacheStore do
     it "returns existing value" do
       cache.set("key1", "value1")
 
-      result = cache.fetch("key1", "new_value")
+      result = cache.fetch("key1") { "new_value" }
       expect(result).to eq("value1")
     end
 
     it "executes block for missing key" do
-      result = cache.fetch("key1", "new_value")
+      result = cache.fetch("key1") { "new_value" }
       expect(result).to eq("new_value")
       expect(cache.get("key1")).to eq("new_value")
     end

@@ -170,7 +170,7 @@ module Lutaml
       def cleanup_expired
         expired_keys = []
 
-        @adapter.each_key do |key|
+        @adapter.keys.each do |key|
           entry_data = @adapter.get(key)
           next unless entry_data
 
