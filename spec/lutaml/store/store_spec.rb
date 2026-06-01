@@ -2,7 +2,7 @@
 
 require "spec_helper"
 
-RSpec.describe Lutaml::Store::Store do
+RSpec.describe Lutaml::Store::BasicStore do
   let(:store) { described_class.new }
 
   describe "initialization" do
@@ -138,7 +138,7 @@ RSpec.describe Lutaml::Store::Store do
       monitor_stats = stats[:monitor_stats]
       expect(monitor_stats[:operations][:set]).to eq(1)
       expect(monitor_stats[:operations][:get]).to eq(1)
-      # Note: total_operations includes the size call from stats method
+      # NOTE: total_operations includes the size call from stats method
       expect(monitor_stats[:total_operations]).to be >= 2
     end
   end

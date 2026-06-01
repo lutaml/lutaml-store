@@ -10,7 +10,7 @@ RSpec.describe Lutaml::Store::Compression do
       it "compresses and decompresses data correctly" do
         compressed = described_class.compress(test_data, "gzip")
         expect(compressed).not_to eq(test_data)
-        # Note: For small strings, compression might actually increase size due to headers
+        # NOTE: For small strings, compression might actually increase size due to headers
         # The important thing is that decompression works correctly
 
         decompressed = described_class.decompress(compressed, "gzip")
@@ -39,15 +39,15 @@ RSpec.describe Lutaml::Store::Compression do
 
     context "with unsupported algorithm" do
       it "raises an error for unsupported compression algorithm" do
-        expect {
+        expect do
           described_class.compress(test_data, "unsupported")
-        }.to raise_error(ArgumentError, /Unsupported compression algorithm/)
+        end.to raise_error(ArgumentError, /Unsupported compression algorithm/)
       end
 
       it "raises an error for unsupported decompression algorithm" do
-        expect {
+        expect do
           described_class.decompress(test_data, "unsupported")
-        }.to raise_error(ArgumentError, /Unsupported compression algorithm/)
+        end.to raise_error(ArgumentError, /Unsupported compression algorithm/)
       end
     end
   end

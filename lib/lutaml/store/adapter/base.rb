@@ -1,82 +1,63 @@
 # frozen_string_literal: true
 
-require_relative "../integrity"
-
 module Lutaml
   module Store
     module Adapter
       class Base
         def initialize(config = {})
           @config = config
-          @integrity_enabled = config.fetch(:integrity_checks, true)
-          @integrity_algorithm = config.fetch(:integrity_algorithm, "sha256")
         end
 
-        def save(key, data, metadata = {})
-          raise NotImplementedError, "Subclasses must implement #save"
+        def get(key)
+          raise NotImplementedError
         end
 
-        def load(key)
-          raise NotImplementedError, "Subclasses must implement #load"
+        def set(key, value)
+          raise NotImplementedError
         end
 
         def delete(key)
-          raise NotImplementedError, "Subclasses must implement #delete"
+          raise NotImplementedError
         end
 
         def exists?(key)
-          raise NotImplementedError, "Subclasses must implement #exists?"
+          raise NotImplementedError
         end
 
         def keys
-          raise NotImplementedError, "Subclasses must implement #keys"
+          raise NotImplementedError
+        end
+
+        def all
+          raise NotImplementedError
         end
 
         def clear
-          raise NotImplementedError, "Subclasses must implement #clear"
+          raise NotImplementedError
         end
 
         def size
-          raise NotImplementedError, "Subclasses must implement #size"
+          raise NotImplementedError
         end
 
         def close
-          # Default implementation - subclasses can override if needed
+          # Optional — override in subclasses that hold resources
         end
 
-        def verify_integrity
-          raise NotImplementedError, "Subclasses must implement #verify_integrity"
+        def bulk_get(keys)
+          keys.each_with_object({}) { |k, h| h[k] = get(k) }
         end
 
-        def repair_corruption(key, backup_data = nil)
-          raise NotImplementedError, "Subclasses must implement #repair_corruption"
+        def bulk_set(key_value_pairs)
+          key_value_pairs.each { |k, v| set(k, v) }
         end
 
-        protected
-
-        attr_reader :config, :integrity_enabled, :integrity_algorithm
-
-        def create_integrity_metadata(data)
-          return {} unless integrity_enabled
-          Integrity.create_integrity_metadata(data, integrity_algorithm)
+        def bulk_delete(keys)
+          keys.each_with_object({}) { |k, h| h[k] = delete(k) }
         end
 
-        def verify_data_integrity(data, metadata)
-          return true unless integrity_enabled
-          return true unless metadata.is_a?(Hash) && metadata[:integrity]
-
-          Integrity.verify_integrity_metadata(data, metadata[:integrity])
-        end
-
-        def wrap_with_integrity(data, user_metadata = {})
-          metadata = user_metadata.dup
-          metadata[:integrity] = create_integrity_metadata(data) if integrity_enabled
-          metadata
-        end
-
-        def extract_user_metadata(metadata)
-          return metadata unless metadata.is_a?(Hash)
-          metadata.reject { |k, _| k == :integrity }
+        def stats
+          { adapter: self.class.name }
         end
       end
     end

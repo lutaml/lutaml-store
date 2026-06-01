@@ -4,12 +4,14 @@ module Lutaml
   module Store
     # Represents a single model registration with its metadata
     class ModelRegistration
-      attr_reader :model_class, :key_field, :polymorphic_class_key
+      attr_reader :model_class, :key_field, :polymorphic_class_key, :serializer, :dir
 
-      def initialize(model_class, key_field, options = {})
+      def initialize(model_class, key_field, polymorphic_class_key: nil, serializer: nil, dir: nil)
         @model_class = model_class
         @key_field = key_field.to_sym
-        @polymorphic_class_key = options[:polymorphic_class_key]&.to_sym
+        @polymorphic_class_key = polymorphic_class_key&.to_sym
+        @serializer = serializer
+        @dir = dir
         validate!
       end
 
@@ -36,23 +38,13 @@ module Lutaml
 
       # Generate storage key for model
       def generate_storage_key(model)
-        key_value = extract_key(model)
-        if polymorphic?
-          polymorphic_class = extract_polymorphic_class(model)
-          "#{polymorphic_class}:#{key_value}"
-        else
-          "#{@model_class.name}:#{key_value}"
-        end
+        StorageKey.new(model.class.name, extract_key(model))
       end
 
       # Generate storage key from key value and optional polymorphic class
       def generate_storage_key_from_value(key_value, polymorphic_class = nil)
-        if polymorphic?
-          class_name = polymorphic_class || @model_class.name
-          "#{class_name}:#{key_value}"
-        else
-          "#{@model_class.name}:#{key_value}"
-        end
+        class_name = polymorphic_class || @model_class.name
+        StorageKey.new(class_name, key_value)
       end
 
       # Check if model class matches this registration (including inheritance)

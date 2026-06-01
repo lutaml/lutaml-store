@@ -149,7 +149,7 @@ module MockHal
       headers = client_response.headers if client_response.respond_to?(:headers)
 
       {
-        status: client_response.respond_to?(:status) ? client_response.status : 200,
+        status_code: client_response.respond_to?(:status) ? client_response.status : 200,
         headers: headers,
         body: client_response.respond_to?(:to_json) ? client_response.to_json : client_response.to_s
       }
@@ -220,14 +220,14 @@ RSpec.describe "HTTP Cache HAL Integration" do
                           })
 
       # First request
-      result1 = register.fetch_resource(url)
+      register.fetch_resource(url)
       expect(client.request_count(url)).to eq(1)
 
       # Wait for cache to expire
       sleep(1.1)
 
       # Second request should hit server again due to expired cache
-      result2 = register.fetch_resource(url)
+      register.fetch_resource(url)
       expect(client.request_count(url)).to eq(2)
     end
 

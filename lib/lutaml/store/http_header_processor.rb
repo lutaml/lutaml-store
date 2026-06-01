@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "uri"
 require "digest"
 require "time"
@@ -30,7 +32,7 @@ module Lutaml
         cache_control = parse_cache_control(response_headers["cache-control"])
 
         # Check for explicit expiry
-        if expires_header = response_headers["expires"]
+        if (expires_header = response_headers["expires"])
           begin
             return Time.parse(expires_header)
           rescue StandardError
@@ -39,7 +41,7 @@ module Lutaml
         end
 
         # Check for max-age
-        if max_age = cache_control["max-age"]
+        if (max_age = cache_control["max-age"])
           return cached_at + max_age
         end
 

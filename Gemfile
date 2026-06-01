@@ -2,13 +2,14 @@
 
 source "https://rubygems.org"
 
-# Specify your gem's dependencies in lutaml-store.gemspec
 gemspec
 
 gem "irb"
-gem "rake", "~> 13.0"
-
-gem "rspec", "~> 3.0"
-
 gem "paint"
-gem "rubocop", "~> 1.21"
+gem "rake"
+gem "rspec"
+gem "rubocop"
+gem "rubocop-performance", require: false
+gem "rubocop-rake", require: false
+gem "rubocop-rspec", require: false
+gem "sqlite3"

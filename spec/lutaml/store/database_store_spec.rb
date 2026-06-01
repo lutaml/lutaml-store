@@ -2,10 +2,7 @@
 
 require "spec_helper"
 
-RSpec.describe Lutaml::Store::DatabaseStore do
-  let(:config) { { adapter_type: :memory } }
-
-  # Test models
+module DatabaseStoreTestModels
   class TestStudio < Lutaml::Model::Serializable
     attribute :studio_key, :string
     attribute :name, :string
@@ -23,12 +20,16 @@ RSpec.describe Lutaml::Store::DatabaseStore do
     attribute :description, :string
     attribute :studio, TestStudio, polymorphic: true
   end
+end
+
+RSpec.describe Lutaml::Store::DatabaseStore do
+  let(:config) { { adapter_type: :memory } }
 
   let(:models) do
     [
-      { model: TestPotteryClass, key: :class_id },
-      { model: TestStudio, key: :studio_key, polymorphic_class_key: :_class },
-      { model: TestCeramicStudio, key: :studio_key, polymorphic_class_key: :_class }
+      { model: DatabaseStoreTestModels::TestPotteryClass, key: :class_id },
+      { model: DatabaseStoreTestModels::TestStudio, key: :studio_key, polymorphic_class_key: :_class },
+      { model: DatabaseStoreTestModels::TestCeramicStudio, key: :studio_key, polymorphic_class_key: :_class }
     ]
   end
 
@@ -48,9 +49,9 @@ RSpec.describe Lutaml::Store::DatabaseStore do
   end
 
   describe "#save and #fetch" do
-    let(:studio) { TestStudio.new(studio_key: "test_studio", name: "Test Studio") }
+    let(:studio) { DatabaseStoreTestModels::TestStudio.new(studio_key: "test_studio", name: "Test Studio") }
     let(:pottery_class) do
-      TestPotteryClass.new(
+      DatabaseStoreTestModels::TestPotteryClass.new(
         class_id: "pottery_101",
         description: "Basic pottery",
         studio: studio
@@ -60,17 +61,17 @@ RSpec.describe Lutaml::Store::DatabaseStore do
     it "saves and fetches a model with composite relationships" do
       store.save(pottery_class)
 
-      fetched = store.fetch(model: TestPotteryClass, class_id: "pottery_101")
-      expect(fetched).to be_a(TestPotteryClass)
+      fetched = store.fetch(model: DatabaseStoreTestModels::TestPotteryClass, class_id: "pottery_101")
+      expect(fetched).to be_a(DatabaseStoreTestModels::TestPotteryClass)
       expect(fetched.class_id).to eq("pottery_101")
       expect(fetched.description).to eq("Basic pottery")
-      expect(fetched.studio).to be_a(TestStudio)
+      expect(fetched.studio).to be_a(DatabaseStoreTestModels::TestStudio)
       expect(fetched.studio.studio_key).to eq("test_studio")
       expect(fetched.studio.name).to eq("Test Studio")
     end
 
     it "handles polymorphic models correctly" do
-      ceramic_studio = TestCeramicStudio.new(
+      ceramic_studio = DatabaseStoreTestModels::TestCeramicStudio.new(
         studio_key: "ceramic_studio",
         name: "Ceramic Studio",
         clay_type: "Porcelain"
@@ -78,22 +79,21 @@ RSpec.describe Lutaml::Store::DatabaseStore do
 
       store.save(ceramic_studio)
 
-      # Fetch as base class should return the more specific type
-      fetched = store.fetch(model: TestStudio, studio_key: "ceramic_studio")
-      expect(fetched).to be_a(TestCeramicStudio)
+      fetched = store.fetch(model: DatabaseStoreTestModels::TestStudio, studio_key: "ceramic_studio")
+      expect(fetched).to be_a(DatabaseStoreTestModels::TestCeramicStudio)
       expect(fetched.clay_type).to eq("Porcelain")
     end
 
     it "returns nil for non-existent models" do
-      result = store.fetch(model: TestPotteryClass, class_id: "nonexistent")
+      result = store.fetch(model: DatabaseStoreTestModels::TestPotteryClass, class_id: "nonexistent")
       expect(result).to be_nil
     end
   end
 
   describe "#update" do
-    let(:studio) { TestStudio.new(studio_key: "test_studio", name: "Test Studio") }
+    let(:studio) { DatabaseStoreTestModels::TestStudio.new(studio_key: "test_studio", name: "Test Studio") }
     let(:pottery_class) do
-      TestPotteryClass.new(
+      DatabaseStoreTestModels::TestPotteryClass.new(
         class_id: "pottery_101",
         description: "Basic pottery",
         studio: studio
@@ -103,35 +103,35 @@ RSpec.describe Lutaml::Store::DatabaseStore do
     before { store.save(pottery_class) }
 
     it "updates with block" do
-      updated = store.update(model: TestPotteryClass, class_id: "pottery_101") do |model|
+      updated = store.update(model: DatabaseStoreTestModels::TestPotteryClass, class_id: "pottery_101") do |model|
         model.description = "Advanced pottery"
         model
       end
 
       expect(updated.description).to eq("Advanced pottery")
 
-      fetched = store.fetch(model: TestPotteryClass, class_id: "pottery_101")
+      fetched = store.fetch(model: DatabaseStoreTestModels::TestPotteryClass, class_id: "pottery_101")
       expect(fetched.description).to eq("Advanced pottery")
     end
 
     it "updates with hash including dot notation" do
       updated = store.update(
-        model: TestPotteryClass,
+        model: DatabaseStoreTestModels::TestPotteryClass,
         class_id: "pottery_101",
         attributes: { "studio.location" => "Downtown" }
       )
 
       expect(updated.studio.location).to eq("Downtown")
 
-      fetched = store.fetch(model: TestPotteryClass, class_id: "pottery_101")
+      fetched = store.fetch(model: DatabaseStoreTestModels::TestPotteryClass, class_id: "pottery_101")
       expect(fetched.studio.location).to eq("Downtown")
     end
   end
 
   describe "#destroy" do
-    let(:studio) { TestStudio.new(studio_key: "test_studio", name: "Test Studio") }
+    let(:studio) { DatabaseStoreTestModels::TestStudio.new(studio_key: "test_studio", name: "Test Studio") }
     let(:pottery_class) do
-      TestPotteryClass.new(
+      DatabaseStoreTestModels::TestPotteryClass.new(
         class_id: "pottery_101",
         description: "Basic pottery",
         studio: studio
@@ -141,35 +141,34 @@ RSpec.describe Lutaml::Store::DatabaseStore do
     before { store.save(pottery_class) }
 
     it "destroys a model and its composite relationships" do
-      result = store.destroy(model: TestPotteryClass, class_id: "pottery_101")
+      result = store.destroy(model: DatabaseStoreTestModels::TestPotteryClass, class_id: "pottery_101")
       expect(result).to be true
 
-      fetched = store.fetch(model: TestPotteryClass, class_id: "pottery_101")
+      fetched = store.fetch(model: DatabaseStoreTestModels::TestPotteryClass, class_id: "pottery_101")
       expect(fetched).to be_nil
 
-      # Composite studio should also be deleted
-      studio_fetched = store.fetch(model: TestStudio, studio_key: "test_studio")
+      studio_fetched = store.fetch(model: DatabaseStoreTestModels::TestStudio, studio_key: "test_studio")
       expect(studio_fetched).to be_nil
     end
 
     it "returns false for non-existent models" do
-      result = store.destroy(model: TestPotteryClass, class_id: "nonexistent")
+      result = store.destroy(model: DatabaseStoreTestModels::TestPotteryClass, class_id: "nonexistent")
       expect(result).to be false
     end
   end
 
   describe "#where" do
-    let(:studio1) { TestStudio.new(studio_key: "studio1", name: "Studio One") }
-    let(:studio2) { TestStudio.new(studio_key: "studio2", name: "Studio Two") }
+    let(:studio1) { DatabaseStoreTestModels::TestStudio.new(studio_key: "studio1", name: "Studio One") }
+    let(:studio2) { DatabaseStoreTestModels::TestStudio.new(studio_key: "studio2", name: "Studio Two") }
     let(:pottery1) do
-      TestPotteryClass.new(
+      DatabaseStoreTestModels::TestPotteryClass.new(
         class_id: "pottery_101",
         description: "Basic pottery",
         studio: studio1
       )
     end
     let(:pottery2) do
-      TestPotteryClass.new(
+      DatabaseStoreTestModels::TestPotteryClass.new(
         class_id: "pottery_201",
         description: "Advanced pottery",
         studio: studio2
@@ -181,24 +180,24 @@ RSpec.describe Lutaml::Store::DatabaseStore do
     end
 
     it "finds models by criteria" do
-      results = store.where(model: TestPotteryClass, description: "Basic pottery")
+      results = store.where(model: DatabaseStoreTestModels::TestPotteryClass, description: "Basic pottery")
       expect(results.size).to eq(1)
       expect(results.first.class_id).to eq("pottery_101")
     end
   end
 
   describe "#all" do
-    let(:studio1) { TestStudio.new(studio_key: "studio1", name: "Studio One") }
-    let(:studio2) { TestStudio.new(studio_key: "studio2", name: "Studio Two") }
+    let(:studio1) { DatabaseStoreTestModels::TestStudio.new(studio_key: "studio1", name: "Studio One") }
+    let(:studio2) { DatabaseStoreTestModels::TestStudio.new(studio_key: "studio2", name: "Studio Two") }
     let(:pottery1) do
-      TestPotteryClass.new(
+      DatabaseStoreTestModels::TestPotteryClass.new(
         class_id: "pottery_101",
         description: "Basic pottery",
         studio: studio1
       )
     end
     let(:pottery2) do
-      TestPotteryClass.new(
+      DatabaseStoreTestModels::TestPotteryClass.new(
         class_id: "pottery_201",
         description: "Advanced pottery",
         studio: studio2
@@ -210,16 +209,16 @@ RSpec.describe Lutaml::Store::DatabaseStore do
     end
 
     it "returns all models of a specific type" do
-      results = store.all(model: TestPotteryClass)
+      results = store.all(model: DatabaseStoreTestModels::TestPotteryClass)
       expect(results.size).to eq(2)
       expect(results.map(&:class_id)).to contain_exactly("pottery_101", "pottery_201")
     end
   end
 
   describe "#exists?" do
-    let(:studio) { TestStudio.new(studio_key: "test_studio", name: "Test Studio") }
+    let(:studio) { DatabaseStoreTestModels::TestStudio.new(studio_key: "test_studio", name: "Test Studio") }
     let(:pottery_class) do
-      TestPotteryClass.new(
+      DatabaseStoreTestModels::TestPotteryClass.new(
         class_id: "pottery_101",
         description: "Basic pottery",
         studio: studio
@@ -229,26 +228,26 @@ RSpec.describe Lutaml::Store::DatabaseStore do
     before { store.save(pottery_class) }
 
     it "returns true for existing models" do
-      expect(store.exists?(model: TestPotteryClass, class_id: "pottery_101")).to be true
+      expect(store.exists?(model: DatabaseStoreTestModels::TestPotteryClass, class_id: "pottery_101")).to be true
     end
 
     it "returns false for non-existent models" do
-      expect(store.exists?(model: TestPotteryClass, class_id: "nonexistent")).to be false
+      expect(store.exists?(model: DatabaseStoreTestModels::TestPotteryClass, class_id: "nonexistent")).to be false
     end
   end
 
   describe "#count" do
-    let(:studio1) { TestStudio.new(studio_key: "studio1", name: "Studio One") }
-    let(:studio2) { TestStudio.new(studio_key: "studio2", name: "Studio Two") }
+    let(:studio1) { DatabaseStoreTestModels::TestStudio.new(studio_key: "studio1", name: "Studio One") }
+    let(:studio2) { DatabaseStoreTestModels::TestStudio.new(studio_key: "studio2", name: "Studio Two") }
     let(:pottery1) do
-      TestPotteryClass.new(
+      DatabaseStoreTestModels::TestPotteryClass.new(
         class_id: "pottery_101",
         description: "Basic pottery",
         studio: studio1
       )
     end
     let(:pottery2) do
-      TestPotteryClass.new(
+      DatabaseStoreTestModels::TestPotteryClass.new(
         class_id: "pottery_201",
         description: "Advanced pottery",
         studio: studio2
@@ -260,8 +259,8 @@ RSpec.describe Lutaml::Store::DatabaseStore do
     end
 
     it "returns count of models" do
-      expect(store.count(model: TestPotteryClass)).to eq(2)
-      expect(store.count(model: TestStudio)).to eq(2)
+      expect(store.count(model: DatabaseStoreTestModels::TestPotteryClass)).to eq(2)
+      expect(store.count(model: DatabaseStoreTestModels::TestStudio)).to eq(2)
     end
   end
 
@@ -270,7 +269,11 @@ RSpec.describe Lutaml::Store::DatabaseStore do
       stats = store.stats
       expect(stats).to include(:models_registered, :registered_models, :total_models)
       expect(stats[:models_registered]).to eq(3)
-      expect(stats[:registered_models]).to include("TestPotteryClass", "TestStudio", "TestCeramicStudio")
+      expect(stats[:registered_models]).to include(
+        "DatabaseStoreTestModels::TestPotteryClass",
+        "DatabaseStoreTestModels::TestStudio",
+        "DatabaseStoreTestModels::TestCeramicStudio"
+      )
     end
   end
 end

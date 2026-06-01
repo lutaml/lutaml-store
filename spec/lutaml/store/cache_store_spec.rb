@@ -80,10 +80,9 @@ RSpec.describe Lutaml::Store::CacheStore do
     it "stores metadata" do
       cache.set("key1", "value1", metadata: { source: "api" })
 
-      # Access the entry directly to check metadata
-      entry_data = cache.adapter.load("key1")
-      entry = cache.send(:deserialize_entry, entry_data)
-      expect(entry.metadata).to eq({ source: "api" })
+      entry_data = cache.adapter.get("key1")
+      parsed = JSON.parse(entry_data, symbolize_names: true)
+      expect(parsed[:metadata]).to eq({ source: "api" })
     end
   end
 
@@ -129,7 +128,7 @@ RSpec.describe Lutaml::Store::CacheStore do
   describe "#touch" do
     it "updates TTL for existing key" do
       cache.set("key1", "value1", ttl: 60)
-      original_ttl = cache.ttl("key1")
+      cache.ttl("key1")
 
       # Simulate some time passing
       allow(Time).to receive(:now).and_return(Time.now + 30)
@@ -155,12 +154,12 @@ RSpec.describe Lutaml::Store::CacheStore do
     it "returns existing value" do
       cache.set("key1", "value1")
 
-      result = cache.fetch("key1") { "new_value" }
+      result = cache.fetch("key1", "new_value")
       expect(result).to eq("value1")
     end
 
     it "executes block for missing key" do
-      result = cache.fetch("key1") { "new_value" }
+      result = cache.fetch("key1", "new_value")
       expect(result).to eq("new_value")
       expect(cache.get("key1")).to eq("new_value")
     end

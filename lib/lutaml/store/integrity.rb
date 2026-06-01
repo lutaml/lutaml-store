@@ -9,23 +9,23 @@ module Lutaml
       class CorruptionError < IntegrityError; end
       class ChecksumMismatchError < IntegrityError; end
 
-  def self.calculate_checksum(data, algorithm = "sha256")
-    # Convert data to string if it's not already
-    string_data = data.is_a?(String) ? data : data.to_s
+      def self.calculate_checksum(data, algorithm = "sha256")
+        # Convert data to string if it's not already
+        string_data = data.is_a?(String) ? data : data.to_s
 
-    case algorithm.to_s.downcase
-    when "md5"
-      Digest::MD5.hexdigest(string_data)
-    when "sha1"
-      Digest::SHA1.hexdigest(string_data)
-    when "sha256"
-      Digest::SHA256.hexdigest(string_data)
-    when "sha512"
-      Digest::SHA512.hexdigest(string_data)
-    else
-      raise ArgumentError, "Unsupported checksum algorithm: #{algorithm}"
-    end
-  end
+        case algorithm.to_s.downcase
+        when "md5"
+          Digest::MD5.hexdigest(string_data)
+        when "sha1"
+          Digest::SHA1.hexdigest(string_data)
+        when "sha256"
+          Digest::SHA256.hexdigest(string_data)
+        when "sha512"
+          Digest::SHA512.hexdigest(string_data)
+        else
+          raise ArgumentError, "Unsupported checksum algorithm: #{algorithm}"
+        end
+      end
 
       def self.verify_checksum(data, expected_checksum, algorithm = "sha256")
         actual_checksum = calculate_checksum(data, algorithm)
@@ -57,9 +57,7 @@ module Lutaml
         end
 
         # Verify checksum
-        if metadata[:checksum] && metadata[:algorithm]
-          verify_checksum(data, metadata[:checksum], metadata[:algorithm])
-        end
+        verify_checksum(data, metadata[:checksum], metadata[:algorithm]) if metadata[:checksum] && metadata[:algorithm]
 
         true
       end
@@ -95,7 +93,7 @@ module Lutaml
         rescue Encoding::UndefinedConversionError
           # Might be binary data, which is also valid
           true
-        rescue
+        rescue StandardError
           false
         end
       end

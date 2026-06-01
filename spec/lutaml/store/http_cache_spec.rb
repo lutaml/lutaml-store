@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "spec_helper"
 require "lutaml/store/http_cache"
 
@@ -179,7 +181,7 @@ RSpec.describe Lutaml::Store::HttpCache do
 
         # Second request should call block again
         block_called = false
-        result2 = http_cache.fetch(method, url, headers) do
+        http_cache.fetch(method, url, headers) do
           block_called = true
           no_store_response
         end

@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "thread"
-
 module Lutaml
   module Store
     module Adapter
@@ -15,7 +13,7 @@ module Lutaml
           @default_ttl = @config[:default_ttl] || 3600
         end
 
-        def load(key)
+        def get(key)
           @mutex.synchronize do
             return nil unless @data.key?(key)
 
@@ -29,7 +27,7 @@ module Lutaml
           end
         end
 
-        def save(key, value, metadata = {})
+        def set(key, value, metadata = {})
           @mutex.synchronize do
             @data[key] = value
 
@@ -40,14 +38,6 @@ module Lutaml
 
             value
           end
-        end
-
-        def get(key)
-          load(key)
-        end
-
-        def set(key, value, ttl: nil)
-          save(key, value, { ttl: ttl })
         end
 
         def delete(key)
@@ -113,23 +103,14 @@ module Lutaml
         def stats
           @mutex.synchronize do
             cleanup_expired if @ttl_enabled
-            current_size = @data.size
-
-            base_stats = {
-              size: current_size,
-              operations: @operations.dup,
-              errors: @errors.dup
-            }
-
-            base_stats.merge({
-              memory_usage: calculate_memory_usage,
+            super.merge(
+              size: @data.size,
               ttl_enabled: @ttl_enabled,
               expired_keys: @ttl_enabled ? count_expired_keys : 0
-            })
+            )
           end
         end
 
-        # Memory-specific operations
         def cleanup_expired
           return unless @ttl_enabled
 
@@ -172,11 +153,10 @@ module Lutaml
 
             expiry_time = @ttl_data[key]
             remaining = expiry_time - Time.now
-            remaining > 0 ? remaining : nil
+            remaining.positive? ? remaining : nil
           end
         end
 
-        # Bulk operations optimized for memory
         def bulk_set(key_value_pairs, ttl: nil)
           @mutex.synchronize do
             key_value_pairs.each do |key, value|
@@ -238,13 +218,6 @@ module Lutaml
             count += 1 if Time.now > expiry_time
           end
           count
-        end
-
-        def calculate_memory_usage
-          # Rough estimation of memory usage
-          data_size = @data.to_s.bytesize
-          ttl_size = @ttl_enabled ? @ttl_data.to_s.bytesize : 0
-          data_size + ttl_size
         end
       end
     end

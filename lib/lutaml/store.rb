@@ -1,31 +1,5 @@
 # frozen_string_literal: true
 
-require_relative "store/version"
-require_relative "store/config"
-require_relative "store/events"
-require_relative "store/cache"
-require_relative "store/monitor"
-require_relative "store/adapter/base"
-require_relative "store/adapter/filesystem"
-require_relative "store/adapter/memory"
-require_relative "store/adapter/sqlite"
-require_relative "store/serializer"
-require_relative "store/compression"
-require_relative "store/integrity"
-require_relative "store/store"
-require_relative "store/cache_store"
-require_relative "store/model_store"
-require_relative "store/database_store"
-require_relative "store/http_cache_entry"
-require_relative "store/http_cache_config"
-require_relative "store/http_header_processor"
-require_relative "store/http_cache"
-require_relative "store/cache_inspector"
-require_relative "store/model_registration"
-require_relative "store/model_registry"
-require_relative "store/composite_model_handler"
-require_relative "store/attribute_updater"
-
 module Lutaml
   module Store
     class Error < StandardError; end
@@ -36,7 +10,30 @@ module Lutaml
     class PolymorphicUpdateError < Error; end
     class CompositeModelError < Error; end
 
-    # New store-centric API entry point
+    autoload :VERSION, "lutaml/store/version"
+    autoload :Config, "lutaml/store/config"
+    autoload :Cache, "lutaml/store/cache"
+    autoload :Monitor, "lutaml/store/monitor"
+    autoload :Events, "lutaml/store/events"
+    autoload :Integrity, "lutaml/store/integrity"
+    autoload :Compression, "lutaml/store/compression"
+    autoload :BasicStore, "lutaml/store/basic_store"
+    autoload :CacheStore, "lutaml/store/cache_store"
+    autoload :ModelSerializer, "lutaml/store/model_serializer"
+    autoload :ModelRegistration, "lutaml/store/model_registration"
+    autoload :ModelRegistry, "lutaml/store/model_registry"
+    autoload :CompositeModelHandler, "lutaml/store/composite_model_handler"
+    autoload :AttributeUpdater, "lutaml/store/attribute_updater"
+    autoload :DatabaseStore, "lutaml/store/database_store"
+    autoload :Adapter, "lutaml/store/adapter"
+    autoload :StorageKey, "lutaml/store/storage_key"
+    autoload :Format, "lutaml/store/format"
+
+    autoload :HttpCache, "lutaml/store/http_cache"
+    autoload :HttpCacheConfig, "lutaml/store/http_cache_config"
+    autoload :HttpCacheEntry, "lutaml/store/http_cache_entry"
+    autoload :HttpHeaderProcessor, "lutaml/store/http_header_processor"
+
     def self.new(adapter:, models: [], **options)
       DatabaseStore.new(adapter: adapter, models: models, **options)
     end

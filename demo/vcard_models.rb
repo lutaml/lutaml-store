@@ -130,7 +130,11 @@ module VCardDemo
     def parse_birth_date
       return nil unless bday&.value
 
-      Date.parse(bday.value.to_s) rescue nil
+      begin
+        Date.parse(bday.value.to_s)
+      rescue StandardError
+        nil
+      end
     end
   end
 end

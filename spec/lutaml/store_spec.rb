@@ -5,9 +5,17 @@ RSpec.describe Lutaml::Store do
     expect(Lutaml::Store::VERSION).not_to be nil
   end
 
-  it "provides access to Store and ModelStore classes" do
-    expect(Lutaml::Store::Store).to be_a(Class)
-    expect(Lutaml::Store::ModelStore).to be_a(Class)
-    expect(Lutaml::Store::Serializer).to be_a(Class)
+  it "provides access to Store and DatabaseStore classes" do
+    expect(Lutaml::Store::BasicStore).to be_a(Class)
+    expect(Lutaml::Store::DatabaseStore).to be_a(Class)
+  end
+
+  it "returns a DatabaseStore from .new" do
+    test_model = Struct.new(:id, :name)
+    store = Lutaml::Store.new(
+      adapter: :memory,
+      models: [{ model: test_model, key: :id }]
+    )
+    expect(store).to be_a(Lutaml::Store::DatabaseStore)
   end
 end

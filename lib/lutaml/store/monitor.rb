@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "thread"
-
 module Lutaml
   module Store
     class Monitor
@@ -25,18 +23,14 @@ module Lutaml
           @stats[:operations][operation] += 1
           @stats[:total_access_count] += 1
 
-          unless success
-            @stats[:errors][operation] += 1
-          end
+          @stats[:errors][operation] += 1 unless success
 
           if duration
             @stats[:access_times][operation] ||= []
             @stats[:access_times][operation] << duration
 
             # Keep only last 1000 measurements to prevent memory bloat
-            if @stats[:access_times][operation].size > 1000
-              @stats[:access_times][operation].shift
-            end
+            @stats[:access_times][operation].shift if @stats[:access_times][operation].size > 1000
           end
         end
       end
@@ -44,7 +38,7 @@ module Lutaml
       # Record an error
       # @param operation [Symbol] the operation that failed
       # @param error [Exception] the error that occurred
-      def record_error(operation, error)
+      def record_error(operation, _error)
         @mutex.synchronize do
           @stats[:errors][operation] += 1
           @stats[:errors][:total] += 1

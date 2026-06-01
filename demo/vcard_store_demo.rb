@@ -312,18 +312,18 @@ class VCardStoreDemo
 
   def find_by_organization(org_name)
     found = 0
-    @stores[:memory].keys.each do |key|
+    @stores[:memory].each_key do |key|
       vcard_data = @stores[:memory].get(key)
       if vcard_data["org"] == org_name
         puts "  👤 #{vcard_data["fn"]} - #{vcard_data["org"]}"
         found += 1
       end
     end
-    puts "  📊 Found #{found} contacts in #{org_name}" if found > 0
+    puts "  📊 Found #{found} contacts in #{org_name}" if found.positive?
   end
 
   def find_by_email_domain(domain)
-    @stores[:filesystem].keys.each do |key|
+    @stores[:filesystem].each_key do |key|
       vcard_data = @stores[:filesystem].get(key)
       emails = vcard_data["email"] || []
       puts "  📧 #{vcard_data["fn"]} - #{emails.first}" if emails.any? { |email| email.include?(domain) }
@@ -331,7 +331,7 @@ class VCardStoreDemo
   end
 
   def find_by_birth_year(year)
-    @stores[:sqlite].keys.each do |key|
+    @stores[:sqlite].each_key do |key|
       vcard_data = @stores[:sqlite].get(key)
       puts "  🎂 #{vcard_data["fn"]} - born in #{year}" if vcard_data.dig("bday", "value")&.start_with?(year.to_s)
     end
@@ -448,9 +448,9 @@ class VCardStoreDemo
 
   # Display a single vCard with colors and formatting
   def display_colored_vcard(vcard)
-    puts Paint["╔" + "═" * 50 + "╗", :blue, :bold]
+    puts Paint["╔#{"═" * 50}╗", :blue, :bold]
     puts Paint["║", :blue, :bold] + Paint[" #{vcard.fn.center(48)} ", :white, :bold] + Paint["║", :blue, :bold]
-    puts Paint["╠" + "═" * 50 + "╣", :blue, :bold]
+    puts Paint["╠#{"═" * 50}╣", :blue, :bold]
 
     # Name details
     if vcard.n.prefix
@@ -497,7 +497,7 @@ class VCardStoreDemo
                :bold] + Paint[" UID: ", :red,
                               :bold] + Paint["#{vcard.uid[0..41]}... ", :red] + Paint["║", :blue, :bold]
 
-    puts Paint["╚" + "═" * 50 + "╝", :blue, :bold]
+    puts Paint["╚#{"═" * 50}╝", :blue, :bold]
   end
 
   # Enhanced search with colored output
@@ -520,7 +520,7 @@ class VCardStoreDemo
 end
 
 # Run the demo
-if __FILE__ == $0
+if __FILE__ == $PROGRAM_NAME
   demo = VCardStoreDemo.new
   demo.run
 end

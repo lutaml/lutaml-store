@@ -10,8 +10,8 @@ module Lutaml
       end
 
       # Register a single model
-      def register(model_class, key_field, options = {})
-        registration = ModelRegistration.new(model_class, key_field, options)
+      def register(model_class, key_field, **options)
+        registration = ModelRegistration.new(model_class, key_field, **options)
         @registrations[model_class] = registration
         registration
       end
@@ -23,8 +23,7 @@ module Lutaml
 
           model_class = config[:model]
           key_field = config[:key]
-          options = config.except(:model, :key)
-          register(model_class, key_field, options)
+          register(model_class, key_field, **config.except(:model, :key))
         end
       end
 
@@ -86,42 +85,38 @@ module Lutaml
       def find_composite_models(model)
         composite_models = {}
 
-        # Get all attributes that could contain registered models
-        model.class.attributes.each do |attr_name, attr_config|
+        model.class.attributes.each_key do |attr_name|
           attr_value = model.public_send(attr_name)
           next if attr_value.nil?
 
-          # Handle single nested model
-          if attr_value.is_a?(Object) && registered?(attr_value.class)
-            registration = find_registration(attr_value.class)
-            key_value = registration.extract_key(attr_value)
-            composite_models[attr_name] = {
-              model: attr_value,
-              registration: registration,
-              key_value: key_value
-            }
-          end
+          add_composite_entry(composite_models, attr_name, attr_value) if attr_value.is_a?(Object) && registered?(attr_value.class)
 
-          # Handle array of nested models
           next unless attr_value.is_a?(Array)
 
           attr_value.each_with_index do |item, index|
             next unless item.is_a?(Object) && registered?(item.class)
 
-            registration = find_registration(item.class)
-            key_value = registration.extract_key(item)
-            composite_models["#{attr_name}.#{index}"] = {
-              model: item,
-              registration: registration,
-              key_value: key_value
-            }
+            add_composite_entry(composite_models, "#{attr_name}.#{index}", item)
           end
         end
 
         composite_models
       rescue NoMethodError
-        # If model doesn't have attributes method, return empty hash
         {}
+      end
+
+      private
+
+      def add_composite_entry(composite_models, attr_path, model_instance)
+        registration = find_registration(model_instance.class)
+        key_value = model_instance.public_send(registration.key_field)
+        return if key_value.nil?
+
+        composite_models[attr_path] = {
+          model: model_instance,
+          registration: registration,
+          key_value: key_value.to_s
+        }
       end
     end
   end

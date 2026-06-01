@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require "sqlite3"
 require "json"
 
 module Lutaml
@@ -11,6 +10,12 @@ module Lutaml
 
         def initialize(config = {})
           super
+          begin
+            require "sqlite3"
+          rescue LoadError
+            raise ConfigurationError,
+                  "sqlite3 gem is required for the SQLite adapter. Add it to your Gemfile."
+          end
           @db_path = @config[:path] || raise(ConfigurationError, "SQLite adapter requires :path config")
           @table_name = @config[:table_name] || DEFAULT_TABLE_NAME
           @timeout = @config[:timeout] || 30_000
@@ -19,20 +24,19 @@ module Lutaml
         end
 
         def get(key)
+          result = nil
           execute_query("SELECT value FROM #{@table_name} WHERE key = ?", [key]) do |row|
             value = row[0]
-            # Try to parse as JSON, fall back to string if it fails
             begin
-              JSON.parse(value)
+              result = JSON.parse(value)
             rescue JSON::ParserError
-              value
+              result = value
             end
           end
-          nil
+          result
         end
 
         def set(key, value)
-          # Serialize the value to JSON if it's not already a string
           serialized_value = value.is_a?(String) ? value : JSON.generate(value)
 
           execute_statement(
@@ -51,7 +55,7 @@ module Lutaml
         end
 
         def exists?(key)
-          result = execute_query("SELECT 1 FROM #{@table_name} WHERE key = ? LIMIT 1", [key]) do |row|
+          execute_query("SELECT 1 FROM #{@table_name} WHERE key = ? LIMIT 1", [key]) do |_row|
             return true
           end
           false
@@ -92,21 +96,21 @@ module Lutaml
         end
 
         def stats
-          super.merge({
-                        db_path: @db_path,
-                        table_name: @table_name,
-                        database_size: calculate_database_size,
-                        schema_version: get_schema_version
-                      })
+          super.merge(
+            db_path: @db_path,
+            table_name: @table_name,
+            database_size: calculate_database_size,
+            schema_version: get_schema_version
+          )
         end
 
-        # Bulk operations optimized for SQLite
         def bulk_set(key_value_pairs)
           @db.transaction do
             key_value_pairs.each do |key, value|
+              serialized_value = value.is_a?(String) ? value : JSON.generate(value)
               execute_statement(
                 "INSERT OR REPLACE INTO #{@table_name} (key, value, updated_at) VALUES (?, ?, ?)",
-                [key, value, Time.now.to_f]
+                [key, serialized_value, Time.now.to_f]
               )
             end
           end
@@ -130,17 +134,10 @@ module Lutaml
 
         private
 
-        def validate_config!
-          return if @config[:path]
-
-          raise ConfigurationError, "SQLite adapter requires :path configuration"
-        end
-
         def setup_database
           @db = SQLite3::Database.new(@db_path)
           @db.busy_timeout = @timeout
 
-          # Enable WAL mode for better concurrency
           @db.execute("PRAGMA journal_mode=WAL")
           @db.execute("PRAGMA synchronous=NORMAL")
           @db.execute("PRAGMA cache_size=10000")

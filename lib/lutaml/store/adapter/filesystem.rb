@@ -16,48 +16,39 @@ module Lutaml
           @root_path = @config[:path] || raise(ConfigurationError, "FileSystem adapter requires :path config")
           @extension = @config[:extension] || DEFAULT_EXTENSION
           @create_directories = @config.fetch(:create_directories, true)
+          @integrity_enabled = @config.fetch(:integrity_checks, true)
+          @integrity_algorithm = @config.fetch(:integrity_algorithm, "sha256")
 
           setup_directory_structure
         end
 
-        def save(key, data, metadata = {})
-          file_path = path_for_key(key)
-          ensure_directory_exists(File.dirname(file_path))
-
-          # Wrap with integrity metadata
-          full_metadata = wrap_with_integrity(data, metadata)
-
-          file_safe_write(file_path, data)
-          write_metadata(key, full_metadata) if full_metadata.any?
-          data
-        end
-
-        def load(key)
+        def get(key)
           file_path = path_for_key(key)
           return nil unless File.exist?(file_path)
 
           data = file_safe_read(file_path)
           metadata = read_metadata(key)
 
-          # Verify integrity if enabled
           begin
             verify_data_integrity(data, metadata)
           rescue Integrity::IntegrityError => e
-            # Try to repair if possible
             repaired_data = repair_corruption(key)
             return repaired_data if repaired_data
+
             raise e
           end
 
           data
         end
 
-        def get(key)
-          load(key)
-        end
-
         def set(key, value)
-          save(key, value)
+          file_path = path_for_key(key)
+          ensure_directory_exists(File.dirname(file_path))
+
+          full_metadata = wrap_with_integrity(value)
+          file_safe_write(file_path, value)
+          write_metadata(key, full_metadata) if full_metadata.any?
+          value
         end
 
         def delete(key)
@@ -70,7 +61,6 @@ module Lutaml
           File.delete(file_path)
           File.delete(metadata_path) if File.exist?(metadata_path)
 
-          # Clean up empty directories
           cleanup_empty_directories(File.dirname(file_path))
 
           value
@@ -83,9 +73,9 @@ module Lutaml
         def keys
           return [] unless Dir.exist?(@root_path)
 
-          Dir.glob(File.join(@root_path, "**", "*#{@extension}")).map do |file_path|
+          Dir.glob(File.join(@root_path, "**", "*#{@extension}")).filter_map do |file_path|
             key_from_path(file_path) if File.file?(file_path)
-          end.compact
+          end
         end
 
         def all
@@ -95,7 +85,7 @@ module Lutaml
             next unless File.file?(file_path)
 
             key = key_from_path(file_path)
-            value = load(key) # Use load to get integrity checking
+            value = get(key)
             result[key] = value if value
           end
 
@@ -113,12 +103,10 @@ module Lutaml
             end
           end
 
-          # Also clean up metadata files
           Dir.glob(File.join(@root_path, "**", "*#{METADATA_EXTENSION}")).each do |file_path|
             File.delete(file_path) if File.file?(file_path)
           end
 
-          # Clean up empty directories
           cleanup_empty_directories(@root_path, preserve_root: true)
 
           count
@@ -130,19 +118,15 @@ module Lutaml
           Dir.glob(File.join(@root_path, "**", "*#{@extension}")).count { |path| File.file?(path) }
         end
 
-        def close
-          # Nothing to close for filesystem adapter
-        end
+        def close; end
 
         def verify_integrity
           corrupted_keys = []
 
           keys.each do |key|
-            begin
-              load(key) # This will verify integrity
-            rescue Integrity::IntegrityError
-              corrupted_keys << key
-            end
+            get(key)
+          rescue Integrity::IntegrityError
+            corrupted_keys << key
           end
 
           {
@@ -157,13 +141,10 @@ module Lutaml
           return nil unless File.exist?(file_path)
 
           corrupted_data = file_safe_read(file_path)
-
-          # Try to repair the data
           repaired_data = Integrity.repair_data(corrupted_data, backup_data)
 
           if Integrity.valid_data?(repaired_data)
-            # Save the repaired data
-            save(key, repaired_data)
+            set(key, repaired_data)
             return repaired_data
           end
 
@@ -171,20 +152,14 @@ module Lutaml
         end
 
         def stats
-          super.merge({
+          super.merge(
             root_path: @root_path,
             extension: @extension,
             disk_usage: calculate_disk_usage
-          })
+          )
         end
 
         private
-
-        def validate_config!
-          unless @config[:path]
-            raise ConfigurationError, "FileSystem adapter requires :path configuration"
-          end
-        end
 
         def setup_directory_structure
           return unless @create_directories
@@ -193,10 +168,8 @@ module Lutaml
         end
 
         def path_for_key(key)
-          # Create a safe file path from the key
           safe_key = sanitize_key(key)
 
-          # Use first two characters for directory structure to avoid too many files in one directory
           if safe_key.length >= 2
             subdir = safe_key[0, 2]
             File.join(@root_path, subdir, "#{safe_key}#{@extension}")
@@ -211,19 +184,31 @@ module Lutaml
         end
 
         def key_from_path(file_path)
-          relative_path = file_path.sub(@root_path, "").sub(/^\//, "")
-
-          # Remove directory structure and extension
-          key = File.basename(relative_path, @extension)
-
-          # Reverse sanitization if needed
-          key
+          relative_path = file_path.sub(@root_path, "").sub(%r{^/}, "")
+          File.basename(relative_path, @extension)
         end
 
         def sanitize_key(key)
-          # Convert key to safe filename
-          # Replace unsafe characters with underscores
           key.to_s.gsub(/[^a-zA-Z0-9._-]/, "_")
+        end
+
+        def create_integrity_metadata(data)
+          return {} unless @integrity_enabled
+
+          Integrity.create_integrity_metadata(data, @integrity_algorithm)
+        end
+
+        def verify_data_integrity(data, metadata)
+          return true unless @integrity_enabled
+          return true unless metadata.is_a?(Hash) && metadata[:integrity]
+
+          Integrity.verify_integrity_metadata(data, metadata[:integrity])
+        end
+
+        def wrap_with_integrity(data, user_metadata = {})
+          metadata = user_metadata.dup
+          metadata[:integrity] = create_integrity_metadata(data) if @integrity_enabled
+          metadata
         end
 
         def write_metadata(key, metadata)
@@ -259,7 +244,6 @@ module Lutaml
 
           Dir.rmdir(dir_path)
 
-          # Recursively clean up parent directories
           parent_dir = File.dirname(dir_path)
           cleanup_empty_directories(parent_dir, preserve_root: preserve_root) if parent_dir != dir_path
         end
@@ -269,7 +253,7 @@ module Lutaml
             file.flock(File::LOCK_SH)
             file.read
           end
-        rescue => e
+        rescue StandardError => e
           raise BackendError, "Failed to read file #{file_path}: #{e.message}"
         end
 
@@ -283,7 +267,7 @@ module Lutaml
           end
 
           File.rename(temp_path, file_path)
-        rescue => e
+        rescue StandardError => e
           File.delete(temp_path) if File.exist?(temp_path)
           raise BackendError, "Failed to write file #{file_path}: #{e.message}"
         end

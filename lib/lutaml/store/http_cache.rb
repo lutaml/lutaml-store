@@ -1,7 +1,6 @@
-require_relative "http_cache_entry"
-require_relative "http_cache_config"
-require_relative "http_header_processor"
-require_relative "adapter/base"
+# frozen_string_literal: true
+
+require "json"
 
 module Lutaml
   module Store
@@ -102,24 +101,26 @@ module Lutaml
 
         prefixed_key = @config.cache_key_for(cache_key)
         @adapter.delete(prefixed_key)
-      rescue StandardError => e
+      rescue StandardError
         # Log error but don't fail
         false
       end
 
       # Clear all cache entries
       def clear
-        @adapter.clear if @adapter.respond_to?(:clear)
+        @adapter.clear
+      rescue StandardError
+        false
       end
 
       # Get cache statistics
       def stats
         total_requests = @stats[:cache_hits] + @stats[:cache_misses]
-        hit_ratio = total_requests > 0 ? (@stats[:cache_hits].to_f / total_requests * 100) : 0
+        hit_ratio = total_requests.positive? ? (@stats[:cache_hits].to_f / total_requests * 100) : 0
 
         {
           adapter_type: @config.adapter_type,
-          total_entries: @adapter.respond_to?(:size) ? @adapter.size : 0,
+          total_entries: @adapter.size,
           cache_hits: @stats[:cache_hits],
           cache_misses: @stats[:cache_misses],
           conditional_requests: @stats[:conditional_requests],
@@ -139,14 +140,15 @@ module Lutaml
 
       # Get all cache entries for inspection
       def all_entries
-        return [] unless @adapter.respond_to?(:data)
-
         entries = []
-        @adapter.data.each do |key, value|
-          entry_data = value.is_a?(String) ? JSON.parse(value) : value
+        @adapter.each_key do |key|
+          data = @adapter.get(key)
+          next unless data
+
+          entry_data = data.is_a?(String) ? JSON.parse(data) : data
           entry = HttpCacheEntry.from_hash(entry_data)
           entries << entry
-        rescue StandardError => e
+        rescue StandardError
           # Skip invalid entries
         end
         entries
@@ -158,13 +160,10 @@ module Lutaml
         adapter_config = @config.to_adapter_config
         case adapter_config[:type]
         when :memory
-          require_relative "adapter/memory"
           Adapter::Memory.new(adapter_config)
         when :filesystem
-          require_relative "adapter/filesystem"
           Adapter::FileSystem.new(adapter_config)
         when :sqlite
-          require_relative "adapter/sqlite"
           Adapter::Sqlite.new(adapter_config)
         else
           raise ArgumentError, "Unknown adapter type: #{adapter_config[:type]}"
@@ -178,7 +177,7 @@ module Lutaml
         # Handle both serialized and hash data
         entry_data = data.is_a?(String) ? JSON.parse(data) : data
         HttpCacheEntry.from_hash(entry_data)
-      rescue StandardError => e
+      rescue StandardError
         # Log error and continue without cache
         nil
       end
@@ -187,7 +186,7 @@ module Lutaml
         # Serialize entry for storage
         data = entry.to_hash
         @adapter.set(cache_key, data)
-      rescue StandardError => e
+      rescue StandardError
         # Log error but don't fail the request
         false
       end
@@ -237,9 +236,7 @@ module Lutaml
 
         # Extract vary header values from request
         request_vary_headers = {}
-        if vary_headers.any?
-          request_vary_headers = HttpHeaderProcessor.extract_vary_headers(request_headers, vary_headers)
-        end
+        request_vary_headers = HttpHeaderProcessor.extract_vary_headers(request_headers, vary_headers) if vary_headers.any?
 
         HttpCacheEntry.new(
           cache_key: cache_key,
@@ -267,7 +264,7 @@ module Lutaml
         }
       end
 
-      def extract_request_vary_headers(headers)
+      def extract_request_vary_headers(_headers)
         # For now, return empty hash - will be populated when we know vary headers
         {}
       end

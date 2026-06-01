@@ -21,7 +21,8 @@ module Lutaml
         when "zstd"
           compress_zstd(data, level)
         else
-          raise ArgumentError, "Unsupported compression algorithm: #{algorithm}. Supported: #{SUPPORTED_ALGORITHMS.join(', ')}"
+          raise ArgumentError,
+                "Unsupported compression algorithm: #{algorithm}. Supported: #{SUPPORTED_ALGORITHMS.join(", ")}"
         end
       end
 
@@ -38,7 +39,8 @@ module Lutaml
         when "zstd"
           decompress_zstd(data)
         else
-          raise ArgumentError, "Unsupported compression algorithm: #{algorithm}. Supported: #{SUPPORTED_ALGORITHMS.join(', ')}"
+          raise ArgumentError,
+                "Unsupported compression algorithm: #{algorithm}. Supported: #{SUPPORTED_ALGORITHMS.join(", ")}"
         end
       end
 
@@ -46,7 +48,7 @@ module Lutaml
         return nil unless data.is_a?(String)
 
         # Force binary encoding for magic number detection
-        binary_data = data.dup.force_encoding('ASCII-8BIT')
+        binary_data = data.dup.force_encoding("ASCII-8BIT")
 
         # Define magic numbers as binary strings
         gzip_magic = "\x1f\x8b".b
@@ -64,8 +66,6 @@ module Lutaml
 
         nil # No compression detected
       end
-
-      private
 
       def self.compress_gzip(data, level)
         io = StringIO.new
@@ -92,57 +92,45 @@ module Lutaml
       end
 
       def self.compress_bzip2(data, level)
-        begin
-          require "bzip2-ffi"
-          Bzip2::FFI.compress(data, level)
-        rescue LoadError
-          raise ArgumentError, "bzip2-ffi gem is required for bzip2 compression"
-        end
+        require "bzip2-ffi"
+        Bzip2::FFI.compress(data, level)
+      rescue LoadError
+        raise ArgumentError, "bzip2-ffi gem is required for bzip2 compression"
       end
 
       def self.decompress_bzip2(data)
-        begin
-          require "bzip2-ffi"
-          Bzip2::FFI.decompress(data)
-        rescue LoadError
-          raise ArgumentError, "bzip2-ffi gem is required for bzip2 compression"
-        end
+        require "bzip2-ffi"
+        Bzip2::FFI.decompress(data)
+      rescue LoadError
+        raise ArgumentError, "bzip2-ffi gem is required for bzip2 compression"
       end
 
       def self.compress_lz4(data)
-        begin
-          require "lz4-ruby"
-          LZ4.compress(data)
-        rescue LoadError
-          raise ArgumentError, "lz4-ruby gem is required for LZ4 compression"
-        end
+        require "lz4-ruby"
+        LZ4.compress(data)
+      rescue LoadError
+        raise ArgumentError, "lz4-ruby gem is required for LZ4 compression"
       end
 
       def self.decompress_lz4(data)
-        begin
-          require "lz4-ruby"
-          LZ4.decompress(data)
-        rescue LoadError
-          raise ArgumentError, "lz4-ruby gem is required for LZ4 compression"
-        end
+        require "lz4-ruby"
+        LZ4.decompress(data)
+      rescue LoadError
+        raise ArgumentError, "lz4-ruby gem is required for LZ4 compression"
       end
 
       def self.compress_zstd(data, level)
-        begin
-          require "zstd-ruby"
-          Zstd.compress(data, level: level)
-        rescue LoadError
-          raise ArgumentError, "zstd-ruby gem is required for Zstd compression"
-        end
+        require "zstd-ruby"
+        Zstd.compress(data, level: level)
+      rescue LoadError
+        raise ArgumentError, "zstd-ruby gem is required for Zstd compression"
       end
 
       def self.decompress_zstd(data)
-        begin
-          require "zstd-ruby"
-          Zstd.decompress(data)
-        rescue LoadError
-          raise ArgumentError, "zstd-ruby gem is required for Zstd compression"
-        end
+        require "zstd-ruby"
+        Zstd.decompress(data)
+      rescue LoadError
+        raise ArgumentError, "zstd-ruby gem is required for Zstd compression"
       end
     end
   end

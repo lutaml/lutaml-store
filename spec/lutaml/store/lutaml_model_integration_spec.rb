@@ -1,367 +1,291 @@
 # frozen_string_literal: true
 
 require "spec_helper"
+require "tmpdir"
 
-# Create fake Lutaml::Model::Serializable classes for testing
-module Lutaml
-  module Model
-    class Serializable
-      attr_reader :attributes
+module IntegrationTestModels
+  class TestDocument < Lutaml::Model::Serializable
+    attribute :id, :string
+    attribute :title, :string
+    attribute :content, :string
+    attribute :created_at, :string
 
-      def initialize(attributes = {})
-        @attributes = attributes.dup
-        # Define accessor methods for each attribute without using singleton methods
-        @attributes.each do |key, value|
-          instance_variable_set("@#{key}", value)
-        end
-      end
+    key_value do
+      map :id, to: :id
+      map :title, to: :title
+      map :content, to: :content
+      map :created_at, to: :created_at
+    end
+  end
 
-      # Define method_missing to handle attribute access
-      def method_missing(method_name, *args, &block)
-        method_str = method_name.to_s
-        if method_str.end_with?('=')
-          # Setter method
-          attr_name = method_str.chomp('=').to_sym
-          if @attributes.key?(attr_name)
-            value = args.first
-            @attributes[attr_name] = value
-            instance_variable_set("@#{attr_name}", value)
-            return value
-          end
-        elsif @attributes.key?(method_name)
-          # Getter method
-          return @attributes[method_name]
-        end
-        super
-      end
+  class TestAuthor < Lutaml::Model::Serializable
+    attribute :name, :string
+    attribute :email, :string
+    attribute :bio, :string
 
-      def respond_to_missing?(method_name, include_private = false)
-        method_str = method_name.to_s
-        if method_str.end_with?('=')
-          attr_name = method_str.chomp('=').to_sym
-          @attributes.key?(attr_name)
-        else
-          @attributes.key?(method_name)
-        end || super
-      end
+    key_value do
+      map :name, to: :name
+      map :email, to: :email
+      map :bio, to: :bio
+    end
+  end
 
-      def to_h
-        @attributes.dup
-      end
+  class TestBook < Lutaml::Model::Serializable
+    attribute :isbn, :string
+    attribute :title, :string
+    attribute :author, :string
+    attribute :published_year, :integer
+    attribute :genre, :string
 
-      def to_json(*args)
-        JSON.generate(to_h)
-      end
-
-      def to_yaml
-        YAML.dump(to_h)
-      end
-
-      def to_xml
-        # Simple XML representation for testing
-        root = self.class.name.split('::').last.downcase
-        content = @attributes.map { |k, v| "  <#{k}>#{v}</#{k}>" }.join("\n")
-        "<#{root}>\n#{content}\n</#{root}>"
-      end
-
-      def self.from_hash(hash)
-        # Convert string keys to symbols for consistency
-        symbolized_hash = {}
-        hash.each do |key, value|
-          symbolized_hash[key.to_sym] = value
-        end
-        new(symbolized_hash)
-      end
-
-      def self.from_json(json_string)
-        hash = JSON.parse(json_string)
-        from_hash(hash)
-      end
-
-      def self.from_yaml(yaml_string)
-        hash = YAML.safe_load(yaml_string)
-        from_hash(hash)
-      end
-
-      def self.from_xml(xml_string)
-        # Simple XML parsing for testing - in reality this would be more complex
-        # Extract attributes from simple XML format
-        attributes = {}
-        xml_string.scan(/<(\w+)>([^<]+)<\/\1>/) do |key, value|
-          attributes[key.to_sym] = value
-        end
-        from_hash(attributes)
-      end
-
-      def ==(other)
-        other.is_a?(self.class) && @attributes == other.attributes
-      end
-
-      # Add marshal support
-      def marshal_dump
-        [@attributes, self.class]
-      end
-
-      def marshal_load(data)
-        @attributes, klass = data
-        @attributes.each do |key, value|
-          instance_variable_set("@#{key}", value)
-        end
-      end
+    key_value do
+      map :isbn, to: :isbn
+      map :title, to: :title
+      map :author, to: :author
+      map :published_year, to: :published_year
+      map :genre, to: :genre
     end
   end
 end
 
-# Test models using Lutaml::Model::Serializable
-class TestDocument < Lutaml::Model::Serializable
-  def initialize(attributes = {})
-    super({
-      id: nil,
-      title: nil,
-      content: nil,
-      created_at: nil
-    }.merge(attributes))
-  end
-end
-
-class TestAuthor < Lutaml::Model::Serializable
-  def initialize(attributes = {})
-    super({
-      name: nil,
-      email: nil,
-      bio: nil
-    }.merge(attributes))
-  end
-end
-
-class TestBook < Lutaml::Model::Serializable
-  def initialize(attributes = {})
-    super({
-      isbn: nil,
-      title: nil,
-      author: nil,
-      published_year: nil,
-      genre: nil
-    }.merge(attributes))
-  end
-end
-
 RSpec.describe "Lutaml::Store with Lutaml::Model::Serializable integration" do
-  let(:config) { { "backend" => { "type" => "memory" } } }
+  let(:doc_model) { { model: IntegrationTestModels::TestDocument, key: :id, dir: "documents" } }
+  let(:author_model) { { model: IntegrationTestModels::TestAuthor, key: :name, dir: "authors" } }
+  let(:book_model) { { model: IntegrationTestModels::TestBook, key: :isbn, dir: "books" } }
 
-  describe "with TestDocument model" do
-    let(:store) { Lutaml::Store::ModelStore.new(config, model_class: TestDocument, format: :marshal) }
-    let(:document) { TestDocument.new(id: "doc1", title: "Test Document", content: "This is a test", created_at: "2024-01-01") }
+  describe "single model CRUD" do
+    let(:store) { Lutaml::Store.new(adapter: :memory, models: [doc_model]) }
+    let(:document) do
+      IntegrationTestModels::TestDocument.new(
+        id: "doc1", title: "Test Document",
+        content: "This is a test", created_at: "2024-01-01"
+      )
+    end
 
-    it "stores and retrieves Lutaml::Model::Serializable instances" do
-      store.store_model("doc1", document)
-      retrieved = store.get_model("doc1")
+    it "saves and fetches a Lutaml::Model::Serializable instance" do
+      store.save(document)
 
-      expect(retrieved).to be_a(TestDocument)
+      retrieved = store.fetch(model: IntegrationTestModels::TestDocument, id: "doc1")
+      expect(retrieved).to be_a(IntegrationTestModels::TestDocument)
       expect(retrieved.id).to eq("doc1")
       expect(retrieved.title).to eq("Test Document")
       expect(retrieved.content).to eq("This is a test")
       expect(retrieved.created_at).to eq("2024-01-01")
     end
 
-    it "validates model type" do
-      author = TestAuthor.new(name: "John Doe", email: "john@example.com")
+    it "returns nil for non-existent key" do
+      expect(store.fetch(model: IntegrationTestModels::TestDocument, id: "missing")).to be_nil
+    end
 
-      expect {
-        store.store_model("invalid", author)
-      }.to raise_error(ArgumentError, /Expected TestDocument/)
+    it "updates a model with hash attributes" do
+      store.save(document)
+
+      updated = store.update(
+        model: IntegrationTestModels::TestDocument,
+        id: "doc1",
+        attributes: { title: "Updated Title" }
+      )
+      expect(updated.title).to eq("Updated Title")
+      expect(updated.content).to eq("This is a test")
+    end
+
+    it "updates a model with block" do
+      store.save(document)
+
+      updated = store.update(model: IntegrationTestModels::TestDocument, id: "doc1") do |model|
+        model.content = "New content"
+        model
+      end
+      expect(updated.content).to eq("New content")
+    end
+
+    it "deletes a model" do
+      store.save(document)
+      expect(store.exists?(model: IntegrationTestModels::TestDocument, id: "doc1")).to be true
+
+      result = store.destroy(model: IntegrationTestModels::TestDocument, id: "doc1")
+      expect(result).to be true
+      expect(store.fetch(model: IntegrationTestModels::TestDocument, id: "doc1")).to be_nil
+    end
+
+    it "reports count and exists" do
+      expect(store.count(model: IntegrationTestModels::TestDocument)).to eq(0)
+
+      store.save(document)
+      expect(store.count(model: IntegrationTestModels::TestDocument)).to eq(1)
+      expect(store.exists?(model: IntegrationTestModels::TestDocument, id: "doc1")).to be true
     end
   end
 
-  describe "with different serialization formats" do
-    let(:book) { TestBook.new(isbn: "978-0123456789", title: "Ruby Programming", author: "Jane Smith", published_year: 2023, genre: "Programming") }
+  describe "model type validation" do
+    let(:store) { Lutaml::Store.new(adapter: :memory, models: [doc_model]) }
 
-    context "with JSON format" do
-      let(:store) { Lutaml::Store::ModelStore.new(config, model_class: TestBook, format: :json) }
+    it "raises when saving an unregistered model" do
+      author = IntegrationTestModels::TestAuthor.new(name: "John Doe", email: "john@example.com")
 
-      it "serializes and deserializes using JSON" do
-        store.store_model("book1", book)
-        retrieved = store.get_model("book1")
-
-        expect(retrieved).to be_a(TestBook)
-        expect(retrieved.isbn).to eq("978-0123456789")
-        expect(retrieved.title).to eq("Ruby Programming")
-        expect(retrieved.author).to eq("Jane Smith")
-      end
-    end
-
-    context "with YAML format" do
-      let(:store) { Lutaml::Store::ModelStore.new(config, model_class: TestBook, format: :yaml) }
-
-      it "serializes and deserializes using YAML" do
-        store.store_model("book1", book)
-        retrieved = store.get_model("book1")
-
-        expect(retrieved).to be_a(TestBook)
-        expect(retrieved.isbn).to eq("978-0123456789")
-        expect(retrieved.title).to eq("Ruby Programming")
-        expect(retrieved.author).to eq("Jane Smith")
-      end
-    end
-
-    context "with hash format" do
-      let(:store) { Lutaml::Store::ModelStore.new(config, model_class: TestBook, format: :hash) }
-
-      it "serializes and deserializes using hash" do
-        store.store_model("book1", book)
-        retrieved = store.get_model("book1")
-
-        expect(retrieved).to be_a(TestBook)
-        expect(retrieved.isbn).to eq("978-0123456789")
-        expect(retrieved.title).to eq("Ruby Programming")
-        expect(retrieved.author).to eq("Jane Smith")
-      end
+      expect { store.save(author) }.to raise_error(Lutaml::Store::ModelNotRegisteredError)
     end
   end
 
-  describe "collection operations with Lutaml::Model instances" do
-    let(:store) { Lutaml::Store::ModelStore.new(config, model_class: TestAuthor, format: :json) }
+  describe "collection operations" do
+    let(:store) { Lutaml::Store.new(adapter: :memory, models: [author_model]) }
     let(:authors) do
       [
-        TestAuthor.new(name: "Alice Johnson", email: "alice@example.com", bio: "Fiction writer"),
-        TestAuthor.new(name: "Bob Wilson", email: "bob@example.com", bio: "Technical writer"),
-        TestAuthor.new(name: "Carol Davis", email: "carol@example.com", bio: "Science writer")
+        IntegrationTestModels::TestAuthor.new(name: "Alice Johnson", email: "alice@example.com", bio: "Fiction writer"),
+        IntegrationTestModels::TestAuthor.new(name: "Bob Wilson", email: "bob@example.com", bio: "Technical writer"),
+        IntegrationTestModels::TestAuthor.new(name: "Carol Davis", email: "carol@example.com", bio: "Science writer")
       ]
     end
 
-    it "stores multiple models with default key generator" do
-      store.store_models(authors)
+    it "stores multiple models and retrieves all" do
+      authors.each { |a| store.save(a) }
 
-      expect(store.model_count).to eq(3)
-      expect(store.model_keys).to include("testauthor_0", "testauthor_1", "testauthor_2")
-
-      first_author = store.get_model("testauthor_0")
-      expect(first_author).to be_a(TestAuthor)
-      expect(first_author.name).to eq("Alice Johnson")
+      all_authors = store.all(model: IntegrationTestModels::TestAuthor)
+      expect(all_authors.size).to eq(3)
+      expect(all_authors.map(&:name).sort).to eq(["Alice Johnson", "Bob Wilson", "Carol Davis"])
     end
 
-    it "stores multiple models with custom key generator" do
-      key_gen = ->(model, _) { "author_#{model.name.downcase.gsub(' ', '_')}" }
-      store.store_models(authors, key_gen)
+    it "queries with where" do
+      authors.each { |a| store.save(a) }
 
-      alice = store.get_model("author_alice_johnson")
-      expect(alice).to be_a(TestAuthor)
-      expect(alice.name).to eq("Alice Johnson")
-      expect(alice.email).to eq("alice@example.com")
+      fiction = store.where(model: IntegrationTestModels::TestAuthor, bio: "Fiction writer")
+      expect(fiction.size).to eq(1)
+      expect(fiction.first.name).to eq("Alice Johnson")
     end
 
-    it "finds models by criteria" do
-      store.store_models(authors)
+    it "updates a model and persists the change" do
+      authors.each { |a| store.save(a) }
 
-      fiction_writers = store.find_models { |key, model| model.bio.include?("Fiction") }
-      expect(fiction_writers.size).to eq(1)
-      expect(fiction_writers.values.first.name).to eq("Alice Johnson")
-    end
-
-    it "updates models" do
-      store.store_models(authors)
-
-      updated = store.update_model("testauthor_0") do |model|
+      store.update(model: IntegrationTestModels::TestAuthor, name: "Alice Johnson") do |model|
         model.bio = "Updated bio: Fiction and mystery writer"
         model
       end
 
-      expect(updated.bio).to eq("Updated bio: Fiction and mystery writer")
-
-      retrieved = store.get_model("testauthor_0")
+      retrieved = store.fetch(model: IntegrationTestModels::TestAuthor, name: "Alice Johnson")
       expect(retrieved.bio).to eq("Updated bio: Fiction and mystery writer")
     end
   end
 
-  describe "export and import operations" do
-    let(:store) { Lutaml::Store::ModelStore.new(config, model_class: TestDocument, format: :marshal) }
-    let(:documents) do
+  describe "multi-model store" do
+    let(:store) { Lutaml::Store.new(adapter: :memory, models: [doc_model, author_model, book_model]) }
+
+    it "stores and retrieves different model types independently" do
+      document = IntegrationTestModels::TestDocument.new(id: "doc1", title: "Test Doc")
+      author = IntegrationTestModels::TestAuthor.new(name: "John Doe", email: "john@example.com")
+      book = IntegrationTestModels::TestBook.new(isbn: "978-123", title: "Test Book", author: "John Doe",
+                                                 published_year: 2024, genre: "Fiction")
+
+      store.save(document)
+      store.save(author)
+      store.save(book)
+
+      expect(store.count(model: IntegrationTestModels::TestDocument)).to eq(1)
+      expect(store.count(model: IntegrationTestModels::TestAuthor)).to eq(1)
+      expect(store.count(model: IntegrationTestModels::TestBook)).to eq(1)
+
+      fetched_doc = store.fetch(model: IntegrationTestModels::TestDocument, id: "doc1")
+      fetched_author = store.fetch(model: IntegrationTestModels::TestAuthor, name: "John Doe")
+      fetched_book = store.fetch(model: IntegrationTestModels::TestBook, isbn: "978-123")
+
+      expect(fetched_doc).to be_a(IntegrationTestModels::TestDocument)
+      expect(fetched_author).to be_a(IntegrationTestModels::TestAuthor)
+      expect(fetched_book).to be_a(IntegrationTestModels::TestBook)
+    end
+
+    it "isolates where queries by model type" do
+      store.save(IntegrationTestModels::TestDocument.new(id: "d1", title: "Ruby Guide"))
+      store.save(IntegrationTestModels::TestBook.new(isbn: "b1", title: "Ruby Guide", author: "Author"))
+
+      docs = store.where(model: IntegrationTestModels::TestDocument, title: "Ruby Guide")
+      books = store.where(model: IntegrationTestModels::TestBook, title: "Ruby Guide")
+
+      expect(docs.size).to eq(1)
+      expect(docs.first).to be_a(IntegrationTestModels::TestDocument)
+      expect(books.size).to eq(1)
+      expect(books.first).to be_a(IntegrationTestModels::TestBook)
+    end
+  end
+
+  describe "file I/O round-trip" do
+    let(:tmpdir) { Dir.mktmpdir }
+    after { FileUtils.rm_rf(tmpdir) }
+
+    let(:store) { Lutaml::Store.new(adapter: :memory, models: [book_model]) }
+    let(:books) do
       [
-        TestDocument.new(id: "doc1", title: "First Document", content: "Content 1"),
-        TestDocument.new(id: "doc2", title: "Second Document", content: "Content 2")
+        IntegrationTestModels::TestBook.new(isbn: "978-0123456789", title: "Ruby Programming", author: "Jane Smith",
+                                            published_year: 2023, genre: "Programming"),
+        IntegrationTestModels::TestBook.new(isbn: "978-9876543210", title: "Go Programming", author: "Bob Jones",
+                                            published_year: 2024, genre: "Programming")
       ]
     end
 
-    before do
-      documents.each_with_index do |doc, index|
-        store.store_model("doc#{index + 1}", doc)
-      end
+    it "round-trips through YAML separate layout" do
+      store.save_all(books, path: tmpdir, format: :yaml, layout: :separate)
+
+      fresh_store = Lutaml::Store.new(adapter: :memory, models: [book_model])
+      loaded = fresh_store.load_all(IntegrationTestModels::TestBook, path: tmpdir, format: :yaml, layout: :separate)
+
+      expect(loaded.size).to eq(2)
+      expect(loaded.map(&:title).sort).to eq(["Go Programming", "Ruby Programming"])
     end
 
-    it "exports models to JSON format" do
-      exported = {}
-      store.export_models(:json) do |key, serialized|
-        exported[key] = serialized
-      end
+    it "round-trips through JSON separate layout" do
+      store.save_all(books, path: tmpdir, format: :json, layout: :separate)
 
-      expect(exported.size).to eq(2)
-      expect(exported["doc1"]).to be_a(String)
+      fresh_store = Lutaml::Store.new(adapter: :memory, models: [book_model])
+      loaded = fresh_store.load_all(IntegrationTestModels::TestBook, path: tmpdir, format: :json, layout: :separate)
 
-      parsed = JSON.parse(exported["doc1"])
-      # With polymorphic support, data is wrapped with type information
-      if parsed.key?("_data")
-        expect(parsed["_type"]).to eq("TestDocument")
-        expect(parsed["_data"]["title"]).to eq("First Document")
-      else
-        # Fallback for non-polymorphic serialization
-        expect(parsed["title"]).to eq("First Document")
-      end
+      expect(loaded.size).to eq(2)
+      expect(loaded.map(&:author).sort).to eq(["Bob Jones", "Jane Smith"])
+    end
+  end
+
+  describe "import_all workflow" do
+    let(:tmpdir) { Dir.mktmpdir }
+    after { FileUtils.rm_rf(tmpdir) }
+
+    let(:store) { Lutaml::Store.new(adapter: :memory, models: [doc_model]) }
+    let(:documents) do
+      [
+        IntegrationTestModels::TestDocument.new(id: "doc1", title: "First Document", content: "Content 1"),
+        IntegrationTestModels::TestDocument.new(id: "doc2", title: "Second Document", content: "Content 2")
+      ]
     end
 
-    it "imports models from JSON format" do
-      # Export to JSON first
-      exported = {}
-      store.export_models(:json) { |key, data| exported[key] = data }
+    it "loads from directory and makes models queryable" do
+      store.save_all(documents, path: tmpdir, format: :yaml, layout: :separate)
 
-      # Clear and import back
-      store.clear_models
-      expect(store.model_count).to eq(0)
+      fresh_store = Lutaml::Store.new(adapter: :memory, models: [doc_model])
+      loaded = fresh_store.import_all(IntegrationTestModels::TestDocument, path: tmpdir, format: :yaml,
+                                                                           layout: :separate)
 
-      store.import_models(exported, :json)
-      expect(store.model_count).to eq(2)
+      expect(loaded.size).to eq(2)
 
-      doc1 = store.get_model("doc1")
-      expect(doc1).to be_a(TestDocument)
+      # Queryable via fetch
+      doc1 = fresh_store.fetch(model: IntegrationTestModels::TestDocument, id: "doc1")
+      expect(doc1).not_to be_nil
       expect(doc1.title).to eq("First Document")
-      expect(doc1.content).to eq("Content 1")
+
+      # Queryable via where
+      second = fresh_store.where(model: IntegrationTestModels::TestDocument, title: "Second Document")
+      expect(second.size).to eq(1)
+      expect(second.first.content).to eq("Content 2")
+
+      # Queryable via count
+      expect(fresh_store.count(model: IntegrationTestModels::TestDocument)).to eq(2)
     end
   end
 
-  describe "polymorphic model support" do
-    let(:store) { Lutaml::Store::ModelStore.new(config, format: :json) }
+  describe "statistics" do
+    let(:store) { Lutaml::Store.new(adapter: :memory, models: [doc_model]) }
 
-    it "stores different model types without model_class restriction" do
-      document = TestDocument.new(id: "doc1", title: "Test Doc")
-      author = TestAuthor.new(name: "John Doe", email: "john@example.com")
-      book = TestBook.new(isbn: "123", title: "Test Book")
-
-      store.store_model("item1", document)
-      store.store_model("item2", author)
-      store.store_model("item3", book)
-
-      expect(store.model_count).to eq(3)
-
-      retrieved_doc = store.get_model("item1")
-      retrieved_author = store.get_model("item2")
-      retrieved_book = store.get_model("item3")
-
-      expect(retrieved_doc).to be_a(TestDocument)
-      expect(retrieved_author).to be_a(TestAuthor)
-      expect(retrieved_book).to be_a(TestBook)
-    end
-  end
-
-  describe "statistics with Lutaml::Model instances" do
-    let(:store) { Lutaml::Store::ModelStore.new(config, model_class: TestDocument, format: :yaml) }
-
-    it "provides model-specific statistics" do
-      document = TestDocument.new(id: "doc1", title: "Test Document")
-      store.store_model("doc1", document)
+    it "reports registered models and counts" do
+      store.save(IntegrationTestModels::TestDocument.new(id: "doc1", title: "Test"))
 
       stats = store.stats
-      expect(stats[:model_class]).to eq("TestDocument")
-      expect(stats[:format]).to eq(:yaml)
-      expect(stats[:model_count]).to eq(1)
+      expect(stats[:models_registered]).to eq(1)
+      expect(stats[:total_models]).to eq(1)
+      expect(stats[:registered_models]).to include("IntegrationTestModels::TestDocument")
     end
   end
 end

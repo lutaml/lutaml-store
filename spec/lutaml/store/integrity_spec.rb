@@ -22,9 +22,9 @@ RSpec.describe Lutaml::Store::Integrity do
     end
 
     it "raises error for unsupported algorithm" do
-      expect {
+      expect do
         described_class.calculate_checksum(test_data, "unsupported")
-      }.to raise_error(ArgumentError, /Unsupported checksum algorithm/)
+      end.to raise_error(ArgumentError, /Unsupported checksum algorithm/)
     end
   end
 
@@ -38,9 +38,9 @@ RSpec.describe Lutaml::Store::Integrity do
     end
 
     it "raises ChecksumMismatchError for incorrect checksum" do
-      expect {
+      expect do
         described_class.verify_checksum(test_data, incorrect_checksum)
-      }.to raise_error(Lutaml::Store::Integrity::ChecksumMismatchError)
+      end.to raise_error(Lutaml::Store::Integrity::ChecksumMismatchError)
     end
   end
 
@@ -87,17 +87,17 @@ RSpec.describe Lutaml::Store::Integrity do
     it "raises CorruptionError for size mismatch" do
       invalid_metadata = valid_metadata.merge(size: 999)
 
-      expect {
+      expect do
         described_class.verify_integrity_metadata(test_data, invalid_metadata)
-      }.to raise_error(Lutaml::Store::Integrity::CorruptionError, /Size mismatch/)
+      end.to raise_error(Lutaml::Store::Integrity::CorruptionError, /Size mismatch/)
     end
 
     it "raises ChecksumMismatchError for checksum mismatch" do
       invalid_metadata = valid_metadata.merge(checksum: "invalid")
 
-      expect {
+      expect do
         described_class.verify_integrity_metadata(test_data, invalid_metadata)
-      }.to raise_error(Lutaml::Store::Integrity::ChecksumMismatchError)
+      end.to raise_error(Lutaml::Store::Integrity::ChecksumMismatchError)
     end
 
     it "returns true when no integrity metadata is present" do

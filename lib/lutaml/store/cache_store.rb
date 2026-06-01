@@ -1,28 +1,30 @@
 # frozen_string_literal: true
 
 require "json"
-require_relative "store"
 
 module Lutaml
   module Store
-    class CacheStore < Store
+    # TTL-aware cache store with LRU eviction. Wraps a storage adapter directly.
+    class CacheStore
       class CacheEntry
         attr_reader :value, :created_at, :ttl, :metadata
 
-        def initialize(value, ttl: nil, metadata: {})
+        def initialize(value, ttl: nil, metadata: {}, created_at: nil)
           @value = value
-          @created_at = Time.now
+          @created_at = created_at || Time.now
           @ttl = ttl
           @metadata = metadata
         end
 
         def expired?
           return false unless @ttl
+
           Time.now - @created_at > @ttl
         end
 
         def expires_at
           return nil unless @ttl
+
           @created_at + @ttl
         end
 
@@ -40,18 +42,19 @@ module Lutaml
           new(
             hash[:value],
             ttl: hash[:ttl],
-            metadata: hash[:metadata] || {}
-          ).tap do |entry|
-            entry.instance_variable_set(:@created_at, Time.parse(hash[:created_at]))
-          end
+            metadata: hash[:metadata] || {},
+            created_at: Time.parse(hash[:created_at])
+          )
         end
       end
 
+      attr_reader :adapter
+
       def initialize(config = {})
-        super
+        @adapter = create_adapter(config)
         @default_ttl = config[:default_ttl]
         @max_size = config[:max_size]
-        @cleanup_interval = config[:cleanup_interval] || 300 # 5 minutes
+        @cleanup_interval = config[:cleanup_interval] || 300
         @last_cleanup = Time.now
         @access_times = {}
       end
@@ -59,7 +62,7 @@ module Lutaml
       def get(key)
         cleanup_expired if should_cleanup?
 
-        entry_data = adapter.load(key)
+        entry_data = @adapter.get(key)
         return nil unless entry_data
 
         begin
@@ -70,11 +73,9 @@ module Lutaml
             return nil
           end
 
-          # Track access time for LRU
           @access_times[key] = Time.now
           entry.value
-        rescue => e
-          # If we can't deserialize the entry, treat it as a cache miss
+        rescue StandardError
           delete(key)
           nil
         end
@@ -88,58 +89,53 @@ module Lutaml
         entry = CacheEntry.new(value, ttl: effective_ttl, metadata: metadata)
 
         serialized_entry = serialize_entry(entry)
-        adapter.save(key, serialized_entry)
+        @adapter.set(key, serialized_entry)
 
         @access_times[key] = Time.now
         value
       end
 
       def delete(key)
-        # Get the value before deleting (without triggering cleanup)
         value = nil
-        entry_data = adapter.load(key)
+        entry_data = @adapter.get(key)
         if entry_data
           begin
             entry = deserialize_entry(entry_data)
             value = entry.value unless entry.expired?
-          rescue
+          rescue StandardError
             # If we can't deserialize, treat as nil
           end
         end
 
         @access_times.delete(key)
 
-        # Call the adapter's delete method
-        deleted = adapter.delete(key)
+        deleted = @adapter.delete(key)
 
-        # Return the value if it was deleted, nil otherwise
         deleted ? value : nil
       end
 
       def clear
         @access_times.clear
-        super
+        @adapter.clear
       end
 
       def exists?(key)
-        # Check if key exists and is not expired
-        return false unless super(key)
+        return false unless @adapter.exists?(key)
 
-        entry_data = adapter.load(key)
+        entry_data = @adapter.get(key)
         return false unless entry_data
 
         begin
           entry = deserialize_entry(entry_data)
           !entry.expired?
-        rescue
-          # If we can't deserialize, consider it as not existing
+        rescue StandardError
           false
         end
       end
 
       def keys
         cleanup_expired if should_cleanup?
-        super.select { |key| exists?(key) }
+        @adapter.keys.select { |key| exists?(key) }
       end
 
       def size
@@ -147,20 +143,18 @@ module Lutaml
         keys.size
       end
 
-      # Cache-specific methods
-
       def ttl(key)
-        entry_data = adapter.load(key)
+        entry_data = @adapter.get(key)
         return nil unless entry_data
 
         begin
           entry = deserialize_entry(entry_data)
           return nil if entry.expired?
-
           return nil unless entry.ttl
+
           remaining = entry.ttl - (Time.now - entry.created_at)
-          remaining > 0 ? remaining : nil
-        rescue
+          remaining.positive? ? remaining : nil
+        rescue StandardError
           nil
         end
       end
@@ -176,17 +170,14 @@ module Lutaml
       def cleanup_expired
         expired_keys = []
 
-        adapter.keys.each do |key|
-          begin
-            entry_data = adapter.load(key)
-            next unless entry_data
+        @adapter.each_key do |key|
+          entry_data = @adapter.get(key)
+          next unless entry_data
 
-            entry = deserialize_entry(entry_data)
-            expired_keys << key if entry.expired?
-          rescue
-            # If we can't deserialize, consider it expired
-            expired_keys << key
-          end
+          entry = deserialize_entry(entry_data)
+          expired_keys << key if entry.expired?
+        rescue StandardError
+          expired_keys << key
         end
 
         expired_keys.each { |key| delete(key) }
@@ -196,7 +187,7 @@ module Lutaml
       end
 
       def cache_info
-        total_keys = adapter.keys.size
+        total_keys = @adapter.keys.size
         valid_keys = keys.size
         expired_keys = total_keys - valid_keys
 
@@ -211,23 +202,22 @@ module Lutaml
       end
 
       def touch(key, ttl: nil)
-        entry_data = adapter.load(key)
+        entry_data = @adapter.get(key)
         return false unless entry_data
 
         begin
           entry = deserialize_entry(entry_data)
           return false if entry.expired?
 
-          # Create new entry with updated TTL
           new_ttl = ttl || entry.ttl
           new_entry = CacheEntry.new(entry.value, ttl: new_ttl, metadata: entry.metadata)
 
           serialized_entry = serialize_entry(new_entry)
-          adapter.save(key, serialized_entry)
+          @adapter.set(key, serialized_entry)
 
           @access_times[key] = Time.now
           true
-        rescue
+        rescue StandardError
           false
         end
       end
@@ -243,7 +233,27 @@ module Lutaml
         value
       end
 
+      def close
+        @adapter.close
+      end
+
       private
+
+      def create_adapter(config)
+        adapter_type = config[:adapter]&.dig(:type) || config[:adapter_type] || :memory
+        adapter_options = config[:adapter]&.dig(:options) || config[:adapter_options] || {}
+
+        case adapter_type.to_sym
+        when :memory
+          Adapter::Memory.new(adapter_options)
+        when :filesystem
+          Adapter::FileSystem.new(adapter_options)
+        when :sqlite
+          Adapter::Sqlite.new(adapter_options)
+        else
+          raise ConfigurationError, "Unknown adapter type: #{adapter_type}"
+        end
+      end
 
       def serialize_entry(entry)
         JSON.generate(entry.to_h)
@@ -262,7 +272,6 @@ module Lutaml
         return unless @max_size
         return if size < @max_size
 
-        # Evict least recently used entries
         keys_by_access = @access_times.sort_by { |_, time| time }.map(&:first)
         keys_to_evict = keys_by_access.first(size - @max_size + 1)
 

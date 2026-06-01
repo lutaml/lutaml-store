@@ -6,38 +6,36 @@ RSpec.describe Lutaml::Store::Config do
   describe "enhanced configuration features" do
     let(:enhanced_config) do
       {
-        "adapter" => {
-          "type" => "memory",
-          "options" => {}
+        adapter_type: :memory,
+        adapter_options: {},
+        cache: {
+          enabled: true,
+          max_size: 500,
+          ttl: 3600
         },
-        "cache" => {
-          "enabled" => true,
-          "max_size" => 500,
-          "ttl" => 3600
+        monitoring: {
+          enabled: true
         },
-        "monitoring" => {
-          "enabled" => true
+        events: {
+          async: true
         },
-        "events" => {
-          "async" => true
+        serialization: {
+          formats: %w[marshal json yaml],
+          validate_on_write: true
         },
-        "serialization" => {
-          "formats" => ["marshal", "json", "yaml"],
-          "validate_on_write" => true
-        },
-        "compression" => {
-          "enabled" => true,
-          "algorithm" => "gzip",
-          "level" => 9
+        compression: {
+          enabled: true,
+          algorithm: "gzip",
+          level: 9
         }
       }
     end
 
-    subject { described_class.new(enhanced_config) }
+    subject { described_class.new(**enhanced_config) }
 
     describe "serialization configuration" do
       it "provides access to serialization formats" do
-        expect(subject.serialization_formats).to eq(["marshal", "json", "yaml"])
+        expect(subject.serialization_formats).to eq(%w[marshal json yaml])
       end
 
       it "provides access to validate_on_write setting" do
@@ -89,13 +87,7 @@ RSpec.describe Lutaml::Store::Config do
 
     describe "configuration merging" do
       it "merges partial configuration with defaults" do
-        partial_config = {
-          "compression" => {
-            "enabled" => true
-          }
-        }
-
-        config = described_class.new(partial_config)
+        config = described_class.new(compression: { enabled: true })
         expect(config.compression_enabled?).to be true
         expect(config.compression_algorithm).to eq("gzip") # default
         expect(config.compression_level).to eq(6) # default
@@ -131,7 +123,7 @@ RSpec.describe Lutaml::Store::Config do
         expect(config.compression_algorithm).to eq("deflate")
         expect(config.compression_level).to eq(3)
         expect(config.validate_on_write?).to be true
-        expect(config.serialization_formats).to eq(["json", "yaml"])
+        expect(config.serialization_formats).to eq(%w[json yaml])
       end
     end
 
@@ -143,7 +135,7 @@ RSpec.describe Lutaml::Store::Config do
         expect(hash).to have_key(:cache)
         expect(hash).to have_key(:monitoring)
         expect(hash).to have_key(:events)
-        # Note: to_h method needs to be updated to include new sections
+        # NOTE: to_h method needs to be updated to include new sections
       end
     end
   end
