@@ -98,6 +98,10 @@ module Lutaml
         @adapter.keys
       end
 
+      def each_key(&block)
+        @adapter.keys.each(&block)
+      end
+
       def bulk_get(keys)
         @adapter.bulk_get(keys)
       end
