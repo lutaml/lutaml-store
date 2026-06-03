@@ -236,7 +236,10 @@ module Lutaml
 
         # Extract vary header values from request
         request_vary_headers = {}
-        request_vary_headers = HttpHeaderProcessor.extract_vary_headers(request_headers, vary_headers) if vary_headers.any?
+        if vary_headers.any?
+          request_vary_headers = HttpHeaderProcessor.extract_vary_headers(request_headers,
+                                                                          vary_headers)
+        end
 
         HttpCacheEntry.new(
           cache_key: cache_key,

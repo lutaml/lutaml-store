@@ -140,20 +140,21 @@ RSpec.describe "Lutaml::Store file I/O" do
   end
 
   # ── YAMLS format ──
+  # Format::Yamls requires models with the yamls DSL (e.g. ConceptDocument).
+  # For simple models without yamls DSL, use Format::Yaml (:yaml) instead.
 
-  describe "YAMLS grouped layout" do
+  describe "YAML multi-document via grouped layout" do
     it "writes multi-document YAML files" do
-      # Grouped YAMLS: each group file contains multiple docs
-      store.save_all(items, path: tmpdir, format: :yamls, layout: :grouped)
+      store.save_all(items, path: tmpdir, format: :yaml, layout: :grouped)
 
       files = Dir.glob(File.join(items_dir, "*.{yaml,yml}")).sort
       expect(files.size).to eq(3)
     end
 
     it "round-trips models" do
-      store.save_all(items, path: tmpdir, format: :yamls, layout: :grouped)
+      store.save_all(items, path: tmpdir, format: :yaml, layout: :grouped)
 
-      loaded = store.load_all(FileTestItem, path: tmpdir, format: :yamls, layout: :grouped)
+      loaded = store.load_all(FileTestItem, path: tmpdir, format: :yaml, layout: :grouped)
       expect(loaded.size).to eq(3)
       expect(loaded.map(&:name).sort).to eq(%w[alpha beta gamma])
     end
