@@ -13,11 +13,11 @@ module Lutaml
         end
 
         def serialize(model)
-          model.to_yaml
+          model.to_yamls
         end
 
         def serialize_many(models)
-          models.map(&:to_yaml).join
+          models.map(&:to_yamls).join
         end
 
         def deserialize(data, model_class)
