@@ -106,7 +106,7 @@ module Lutaml
         registration = @registry.registration_for(model)
 
         models = []
-        @store.keys.each do |storage_key|
+        @store.each_key do |storage_key|
           parsed = StorageKey.parse(storage_key.to_s)
           next unless parsed.class_name == model.name
 

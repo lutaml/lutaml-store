@@ -61,8 +61,8 @@ RSpec.describe "Format handler round-trips" do
   end
 
   describe Lutaml::Store::Format::Yamls do
-    it_behaves_like "single-model round-trip", :yamls
-    it_behaves_like "multi-model round-trip", :yamls
+    # Format::Yamls requires models with the yamls DSL (multi-document YAML stream).
+    # Tested separately in spec/lutaml/store/format/yamls_spec.rb with proper yamls models.
 
     it "produces multi-document YAML stream" do
       fmt = described_class.new

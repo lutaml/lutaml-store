@@ -100,10 +100,16 @@ module Lutaml
 
         parts.each_with_index do |part, index|
           if part.match?(/\A\d+\z/)
-            raise InvalidKeyError, "Expected array at #{parts[0..index - 1].join(".")}, got #{current.class}" unless current.is_a?(Array)
+            unless current.is_a?(Array)
+              raise InvalidKeyError,
+                    "Expected array at #{parts[0..index - 1].join(".")}, got #{current.class}"
+            end
 
             index_val = part.to_i
-            raise InvalidKeyError, "Array index #{index_val} out of bounds for #{parts[0..index - 1].join(".")}" if index_val >= current.length
+            if index_val >= current.length
+              raise InvalidKeyError,
+                    "Array index #{index_val} out of bounds for #{parts[0..index - 1].join(".")}"
+            end
 
             current = current[index_val]
           else
@@ -130,7 +136,10 @@ module Lutaml
         end
 
         current_model = model.public_send(attr_name)
-        validate_polymorphic_key_compatibility!(current_model, new_polymorphic_model) if current_model && @registry.registered?(current_model.class)
+        if current_model && @registry.registered?(current_model.class)
+          validate_polymorphic_key_compatibility!(current_model,
+                                                  new_polymorphic_model)
+        end
 
         model.public_send("#{attr_name}=", new_polymorphic_model)
       end

@@ -89,7 +89,10 @@ module Lutaml
           attr_value = model.public_send(attr_name)
           next if attr_value.nil?
 
-          add_composite_entry(composite_models, attr_name, attr_value) if attr_value.is_a?(Object) && registered?(attr_value.class)
+          if attr_value.is_a?(Object) && registered?(attr_value.class)
+            add_composite_entry(composite_models, attr_name,
+                                attr_value)
+          end
 
           next unless attr_value.is_a?(Array)
 
