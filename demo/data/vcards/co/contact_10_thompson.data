@@ -1,1 +1,0 @@
-{:version=>"4.0", :fn=>"Emma Thompson", :n=>{:family=>"Thompson", :given=>"Emma", :additional=>nil, :prefix=>nil, :suffix=>nil}, :tel=>[{:value=>"+1-555-0110", :type=>"work", :pref=>nil}], :email=>["emma.thompson@law.com"], :org=>"Thompson & Associates", :bday=>{:value=>"1977-04-07"}, :uid=>"2361d65a-8810-49f9-bc3b-eeff2c229b5c"}

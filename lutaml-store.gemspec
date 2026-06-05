@@ -18,19 +18,25 @@ Gem::Specification.new do |spec|
   spec.homepage = "https://github.com/lutaml/lutaml-store"
   spec.license = "BSD-2-Clause"
 
-  spec.bindir = "exe"
-  spec.require_paths = ["lib"]
-  spec.required_ruby_version = Gem::Requirement.new(">= 3.0.0")
-
-  spec.files = Dir.chdir(File.expand_path(__dir__)) do
-    `git ls-files -z`.split("\x0").reject do |f|
-      f.match(%r{^(test|features)/})
+  gemspec = File.basename(__FILE__)
+  spec.files = IO.popen(%w[git ls-files -z], chdir: __dir__,
+                                             err: IO::NULL) do |ls|
+    ls.readlines("\x0", chomp: true).reject do |f|
+      (f == gemspec) ||
+        f.start_with?(*%w[bin/ test/ spec/ features/ .git .github
+                          Gemfile demo/])
     end
   end
-  spec.executables = spec.files.grep(%r{^exe/}) { |f| File.basename(f) }
+  spec.bindir = "exe"
+  spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
+  spec.require_paths = ["lib"]
+  spec.required_ruby_version = ">= 3.0.0"
 
   spec.add_dependency "lutaml-model", "~> 0.8.15"
   spec.add_dependency "rubyzip", "~> 2.3"
 
+  spec.metadata["homepage_uri"] = spec.homepage
+  spec.metadata["source_code_uri"] = spec.homepage
+  spec.metadata["changelog_uri"] = spec.homepage
   spec.metadata["rubygems_mfa_required"] = "true"
 end

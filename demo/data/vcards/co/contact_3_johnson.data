@@ -1,1 +1,0 @@
-{:version=>"4.0", :fn=>"Dr. Robert Johnson", :n=>{:family=>"Johnson", :given=>"Robert", :additional=>nil, :prefix=>"Dr.", :suffix=>nil}, :tel=>[{:value=>"+1-555-0103", :type=>"work", :pref=>nil}], :email=>["r.johnson@hospital.com", "robert@personal.com"], :org=>"City Hospital", :bday=>{:value=>"1975-11-08"}, :uid=>"b63bdabe-bff7-4198-94d7-6730e2a52cd4"}
