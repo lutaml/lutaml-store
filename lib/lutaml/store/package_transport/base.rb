@@ -42,6 +42,18 @@ module Lutaml
         def sanitize_filename(key)
           key.gsub(%r{[/:#?]}, "_")
         end
+
+        def read_file(file_path, fmt)
+          fmt.binary? ? File.binread(file_path) : File.read(file_path, encoding: "utf-8")
+        end
+
+        def write_file(file_path, content, fmt)
+          if fmt.binary?
+            File.binwrite(file_path, content)
+          else
+            File.write(file_path, content, encoding: "utf-8")
+          end
+        end
       end
     end
   end

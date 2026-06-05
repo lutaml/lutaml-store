@@ -47,7 +47,7 @@ module Lutaml
           return unless File.exist?(file_path)
 
           fmt = format_for_file(definition.metadata_file)
-          raw = File.read(file_path, encoding: "utf-8")
+          raw = read_file(file_path, fmt)
           metadata = fmt.deserialize(raw, definition.metadata_model)
           package_store.metadata = metadata
         end
@@ -60,7 +60,7 @@ module Lutaml
           content = fmt.serialize(package_store.metadata)
           file_path = File.join(path, definition.metadata_file)
           FileUtils.mkdir_p(File.dirname(file_path))
-          File.write(file_path, content, encoding: "utf-8")
+          write_file(file_path, content, fmt)
         end
 
         def read_model_entry(base_path, entry, package_store, fmt_name)
@@ -76,7 +76,7 @@ module Lutaml
           return unless File.exist?(file_path)
 
           fmt = resolve_format(fmt_name)
-          raw = File.read(file_path, encoding: "utf-8")
+          raw = read_file(file_path, fmt)
           model = fmt.deserialize(raw, entry.model)
           package_store.add_model(model)
         end
@@ -91,8 +91,8 @@ module Lutaml
           Dir.glob(glob).sort.each do |file_path|
             next unless File.file?(file_path)
 
-            raw = File.read(file_path, encoding: "utf-8")
-            next if raw.strip.empty?
+            raw = read_file(file_path, fmt)
+            next if !fmt.binary? && raw.strip.empty?
 
             begin
               case entry.layout
@@ -127,7 +127,7 @@ module Lutaml
           content = entry.layout == :grouped ? fmt.serialize_many(models) : fmt.serialize(models.first)
           file_path = File.join(base_path, entry.file)
           FileUtils.mkdir_p(File.dirname(file_path))
-          File.write(file_path, content, encoding: "utf-8")
+          write_file(file_path, content, fmt)
         end
 
         def write_directory_models(base_path, entry, models, fmt)
@@ -138,13 +138,13 @@ module Lutaml
           when :grouped
             models.group_by { |m| extract_key(m, entry) }.each do |key, group|
               file_path = File.join(dir, "#{sanitize_filename(key)}#{fmt.extension}")
-              File.write(file_path, fmt.serialize_many(group), encoding: "utf-8")
+              write_file(file_path, fmt.serialize_many(group), fmt)
             end
           else
             models.each do |model|
               key = extract_key(model, entry)
               file_path = File.join(dir, "#{sanitize_filename(key)}#{fmt.extension}")
-              File.write(file_path, fmt.serialize(model), encoding: "utf-8")
+              write_file(file_path, fmt.serialize(model), fmt)
             end
           end
         end

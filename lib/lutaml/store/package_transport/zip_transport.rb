@@ -93,14 +93,19 @@ module Lutaml
             next if zip_entry.name == prefix || zip_entry.name.end_with?("/")
 
             raw = zip_entry.get_input_stream.read
-            next if raw.strip.empty?
+            next if !fmt.binary? && raw.strip.empty?
 
             begin
-              loaded = fmt.deserialize_many(raw, entry.model)
-              loaded = [loaded] unless loaded.is_a?(Array)
-              loaded.each do |m|
-                set_key_from_zip_path(m, zip_entry.name, entry, prefix)
-                package_store.add_model(m)
+              case entry.layout
+              when :grouped
+                fmt.deserialize_many(raw, entry.model).each do |m|
+                  set_key_from_zip_path(m, zip_entry.name, entry, prefix)
+                  package_store.add_model(m)
+                end
+              else
+                model = fmt.deserialize(raw, entry.model)
+                set_key_from_zip_path(model, zip_entry.name, entry, prefix)
+                package_store.add_model(model)
               end
             rescue StandardError => e
               warn "PackageStore: failed to load #{zip_entry.name}: #{e.message}"

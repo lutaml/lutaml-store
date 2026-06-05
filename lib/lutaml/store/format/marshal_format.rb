@@ -31,6 +31,10 @@ module Lutaml
           hash_array = ::Marshal.load(data)
           hash_array.map { |h| model_class.from_hash(h) }
         end
+
+        def binary?
+          true
+        end
       end
     end
   end
