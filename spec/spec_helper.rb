@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require "lutaml/model"
-require "lutaml/store"
+require_relative "../lib/lutaml/store"
 
 RSpec.configure do |config|
   # Enable flags like --only-failures and --next-failure
@@ -13,4 +13,15 @@ RSpec.configure do |config|
   config.expect_with :rspec do |c|
     c.syntax = :expect
   end
+
+  def fixture_path(filename)
+    File.expand_path("../fixtures/#{filename}", __FILE__)
+  end
+end
+
+Lutaml::Model::Config.configure do |config|
+  # config.xml_adapter_type = :nokogiri
+  config.json_adapter_type = :standard_json
+  # config.yaml_adapter_type = :standard_yaml
+  # config.toml_adapter_type = :toml_rb
 end

@@ -168,7 +168,7 @@ The demo shows how to enable SHA256 checksums:
 
 [source,ruby]
 ----
-store = Lutaml::Store::Store.new(
+store = Lutaml::Store::BasicStore.new(
   adapter: { type: :memory },
   integrity: { enabled: true, algorithm: :sha256 }
 )
@@ -179,7 +179,7 @@ GZIP compression reduces storage space:
 
 [source,ruby]
 ----
-store = Lutaml::Store::Store.new(
+store = Lutaml::Store::BasicStore.new(
   adapter: { type: :memory },
   compression: { enabled: true, algorithm: :gzip }
 )
