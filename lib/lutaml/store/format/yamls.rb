@@ -17,7 +17,7 @@ module Lutaml
         end
 
         def serialize_many(models)
-          models.map(&:to_yamls).join
+          models.map(&:to_yamls).join("\n")
         end
 
         def deserialize(data, model_class)

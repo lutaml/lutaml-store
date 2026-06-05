@@ -167,16 +167,7 @@ module Lutaml
       end
 
       def create_adapter
-        case @config.adapter_type
-        when :memory
-          Adapter::Memory.new(@config.adapter_options)
-        when :filesystem
-          Adapter::FileSystem.new(@config.adapter_options)
-        when :sqlite
-          Adapter::Sqlite.new(@config.adapter_options)
-        else
-          raise ConfigurationError, "Unknown adapter type: #{@config.adapter_type}"
-        end
+        Adapter.resolve(@config.adapter_type, @config.adapter_options)
       end
 
       def create_cache

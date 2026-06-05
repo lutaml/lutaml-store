@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "json"
+require "time"
 
 module Lutaml
   module Store
@@ -246,16 +247,7 @@ module Lutaml
         adapter_type = config[:adapter]&.dig(:type) || config[:adapter_type] || :memory
         adapter_options = config[:adapter]&.dig(:options) || config[:adapter_options] || {}
 
-        case adapter_type.to_sym
-        when :memory
-          Adapter::Memory.new(adapter_options)
-        when :filesystem
-          Adapter::FileSystem.new(adapter_options)
-        when :sqlite
-          Adapter::Sqlite.new(adapter_options)
-        else
-          raise ConfigurationError, "Unknown adapter type: #{adapter_type}"
-        end
+        Adapter.resolve(adapter_type, adapter_options)
       end
 
       def serialize_entry(entry)

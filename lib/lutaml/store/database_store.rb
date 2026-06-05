@@ -207,7 +207,7 @@ module Lutaml
 
         content = fmt.serialize_many(models_array)
 
-        File.write(path, content, encoding: "utf-8")
+        write_file(path, content, fmt)
         @store.emit_event(:model_export, count: models_array.size, path: path)
         path
       end
@@ -331,8 +331,8 @@ module Lutaml
         Dir.glob(glob).sort.each do |file_path|
           next unless File.file?(file_path)
 
-          raw = File.read(file_path, encoding: "utf-8")
-          next if raw.strip.empty?
+          raw = read_file(file_path, fmt)
+          next if !fmt.binary? && raw.strip.empty?
 
           begin
             model = fmt.deserialize(raw, model_class)
@@ -351,8 +351,8 @@ module Lutaml
         Dir.glob(glob).sort.each do |file_path|
           next unless File.file?(file_path)
 
-          raw = File.read(file_path, encoding: "utf-8")
-          next if raw.strip.empty?
+          raw = read_file(file_path, fmt)
+          next if !fmt.binary? && raw.strip.empty?
 
           begin
             loaded = fmt.deserialize_many(raw, model_class)
@@ -375,8 +375,7 @@ module Lutaml
           key = extract_model_key(model)
           filename = key || model.class.name.to_s.gsub("::", "_")
           file_path = File.join(dir, "#{filename}#{fmt.extension}")
-          content = fmt.serialize(model)
-          File.write(file_path, content, encoding: "utf-8")
+          write_file(file_path, fmt.serialize(model), fmt)
           model
         end
       end
@@ -391,8 +390,7 @@ module Lutaml
 
         grouped.map do |key, group|
           file_path = File.join(dir, "#{key}#{fmt.extension}")
-          content = fmt.serialize_many(group)
-          File.write(file_path, content, encoding: "utf-8")
+          write_file(file_path, fmt.serialize_many(group), fmt)
           group
         end.flatten
       end
@@ -419,6 +417,18 @@ module Lutaml
 
         basename = File.basename(file_path, ".*")
         model.public_send(:"#{registration.key_field}=", basename)
+      end
+
+      def read_file(file_path, fmt)
+        fmt.binary? ? File.binread(file_path) : File.read(file_path, encoding: "utf-8")
+      end
+
+      def write_file(file_path, content, fmt)
+        if fmt.binary?
+          File.binwrite(file_path, content)
+        else
+          File.write(file_path, content, encoding: "utf-8")
+        end
       end
     end
   end

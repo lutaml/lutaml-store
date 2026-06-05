@@ -107,4 +107,47 @@ RSpec.describe "Format handler round-trips" do
       expect(output.encoding).to eq(Encoding::ASCII_8BIT)
     end
   end
+
+  describe Lutaml::Store::Format::Xml do
+    before do
+      xml_item = Class.new(Lutaml::Model::Serializable) do
+        attribute :name, :string
+        attribute :value, :string
+        attribute :count, :integer
+
+        xml do
+          root "item"
+          map_attribute "name", to: :name
+          map_element "value", to: :value
+          map_element "count", to: :count
+        end
+      end
+      stub_const("XmlFormatTestItem", xml_item)
+    end
+
+    let(:xml_item) { XmlFormatTestItem.new(name: "alpha", value: "first", count: 42) }
+    let(:xml_items) do
+      [
+        XmlFormatTestItem.new(name: "alpha", value: "first", count: 1),
+        XmlFormatTestItem.new(name: "beta", value: "second", count: 2)
+      ]
+    end
+
+    it "round-trips a single model through xml" do
+      fmt = described_class.new
+      serialized = fmt.serialize(xml_item)
+      restored = fmt.deserialize(serialized, XmlFormatTestItem)
+      expect(restored.name).to eq("alpha")
+      expect(restored.value).to eq("first")
+      expect(restored.count).to eq(42)
+    end
+
+    it "round-trips multiple models through xml" do
+      fmt = described_class.new
+      serialized = fmt.serialize_many(xml_items)
+      restored = fmt.deserialize_many(serialized, XmlFormatTestItem)
+      expect(restored.size).to eq(2)
+      expect(restored.map(&:name).sort).to eq(%w[alpha beta])
+    end
+  end
 end
