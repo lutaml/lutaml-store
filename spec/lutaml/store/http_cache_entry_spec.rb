@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require "spec_helper"
-require "lutaml/store/http_cache_entry"
 
 RSpec.describe Lutaml::Store::HttpCacheEntry do
   let(:cache_entry) do

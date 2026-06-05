@@ -4,14 +4,17 @@ module Lutaml
   module Store
     # Represents a single model registration with its metadata
     class ModelRegistration
-      attr_reader :model_class, :key_field, :polymorphic_class_key, :serializer, :dir
+      attr_reader :model_class, :key_field, :polymorphic_class_key, :serializer, :dir,
+                  :composites
 
-      def initialize(model_class, key_field, polymorphic_class_key: nil, serializer: nil, dir: nil)
+      def initialize(model_class, key_field, polymorphic_class_key: nil, serializer: nil,
+                     dir: nil, composites: [])
         @model_class = model_class
         @key_field = key_field.to_sym
         @polymorphic_class_key = polymorphic_class_key&.to_sym
         @serializer = serializer
         @dir = dir
+        @composites = composites.map(&:to_sym)
         validate!
       end
 

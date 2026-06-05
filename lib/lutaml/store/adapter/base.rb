@@ -28,6 +28,10 @@ module Lutaml
           raise NotImplementedError
         end
 
+        def each_key(&block)
+          raise NotImplementedError
+        end
+
         def all
           raise NotImplementedError
         end

@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require "spec_helper"
-require "lutaml/store/http_cache"
+require "tmpdir"
 
 RSpec.describe Lutaml::Store::HttpCache do
   let(:cache_config) do
@@ -342,7 +342,7 @@ RSpec.describe Lutaml::Store::HttpCache do
     let(:method) { "GET" }
 
     it "caches different responses for different vary headers" do
-      pending "WIP: vary header caching not yet implemented"
+      pending "Vary-based caching requires multi-entry storage per URL key — not yet implemented"
       vary_response = {
         status_code: 200,
         headers: { "vary" => "Accept-Encoding", "content-type" => "application/json" },
@@ -369,6 +369,97 @@ RSpec.describe Lutaml::Store::HttpCache do
 
       expect(cached1[:body]).to eq('{"compressed": false}')
       expect(cached2[:body]).to eq('{"compressed": true}')
+    end
+  end
+
+  describe "HTTP cache directives" do
+    let(:url) { "http://example.com/api" }
+    let(:method) { "GET" }
+    let(:headers) { {} }
+
+    it "forces revalidation for no-cache responses" do
+      no_cache_response = {
+        status_code: 200,
+        headers: { "cache-control" => "no-cache", "etag" => '"nc1"' },
+        body: "no-cache data"
+      }
+
+      http_cache.fetch(method, url, headers) { no_cache_response }
+
+      revalidated = false
+      http_cache.fetch(method, url, headers) do |req_headers|
+        revalidated = true
+        expect(req_headers["If-None-Match"]).to eq('"nc1"')
+        { status_code: 304, headers: {}, body: "" }
+      end
+
+      expect(revalidated).to be true
+    end
+
+    it "handles must-revalidate by revalidating stale entries" do
+      response = {
+        status_code: 200,
+        headers: { "cache-control" => "max-age=1, must-revalidate", "etag" => '"mr1"' },
+        body: "revalidate data"
+      }
+
+      http_cache.fetch(method, url, headers) { response }
+      sleep(1.1)
+
+      revalidated = false
+      http_cache.fetch(method, url, headers) do |req_headers|
+        revalidated = true
+        expect(req_headers["If-None-Match"]).to eq('"mr1"')
+        { status_code: 304, headers: {}, body: "" }
+      end
+
+      expect(revalidated).to be true
+    end
+
+    it "handles malformed cache-control headers gracefully" do
+      malformed_response = {
+        status_code: 200,
+        headers: { "cache-control" => "invalid-directive", "expires" => "not-a-date" },
+        body: "malformed data"
+      }
+
+      result = http_cache.fetch(method, url, headers) { malformed_response }
+      expect(result[:body]).to eq("malformed data")
+
+      # Should still be cacheable (falls through to default TTL)
+      cached = http_cache.get(method, url, headers)
+      expect(cached).not_to be_nil
+    end
+  end
+
+  describe "filesystem adapter" do
+    let(:method) { "GET" }
+    let(:headers) { {} }
+    let(:response_data) do
+      {
+        status_code: 200,
+        headers: { "cache-control" => "max-age=3600" },
+        body: "fs data"
+      }
+    end
+
+    it "caches responses to disk" do
+      Dir.mktmpdir do |tmpdir|
+        fs_cache = described_class.new(
+          adapter_type: "filesystem",
+          default_ttl: 3600,
+          adapter_options: { path: tmpdir }
+        )
+
+        fs_cache.set(method, "http://example.com/fs-test", headers, response_data)
+
+        # Verify cache file was created
+        cache_files = Dir.glob(File.join(tmpdir, "**", "*")).select { |f| File.file?(f) }
+        expect(cache_files).not_to be_empty
+
+        cached = fs_cache.get(method, "http://example.com/fs-test", headers)
+        expect(cached[:body]).to eq("fs data")
+      end
     end
   end
 

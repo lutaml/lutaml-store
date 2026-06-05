@@ -20,15 +20,13 @@ module Lutaml
 
       def self.load(definition, path, transport: :directory, format: nil)
         store = new(definition)
-        transporter = resolve_transport(transport)
-        transporter.read(path, store, format: format)
+        PackageTransport.resolve(transport).read(path, store, format: format)
         store
       end
 
       def save(path, transport: :directory, format: nil, formats: {})
         resolved_formats = resolve_formats(format, formats)
-        transporter = self.class.resolve_transport(transport)
-        transporter.write(path, self, formats: resolved_formats)
+        PackageTransport.resolve(transport).write(path, self, formats: resolved_formats)
       end
 
       # ── Model CRUD ──
@@ -118,21 +116,7 @@ module Lutaml
         }
       end
 
-      # Public access for PackageTransport (avoids instance_variable_get).
-      attr_reader :db
-
       private
-
-      def self.resolve_transport(transport)
-        case transport
-        when :directory, "directory"
-          PackageTransport::DirectoryTransport.new
-        when :zip, "zip"
-          PackageTransport::ZipTransport.new
-        else
-          raise ConfigurationError, "Unknown transport: #{transport}"
-        end
-      end
 
       def resolve_formats(global_format, per_model_formats)
         if global_format

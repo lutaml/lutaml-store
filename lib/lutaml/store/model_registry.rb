@@ -81,34 +81,36 @@ module Lutaml
         @registrations.clear
       end
 
-      # Find models that are registered and nested within other models
+      # Find declared composite models nested within the given model
       def find_composite_models(model)
-        composite_models = {}
+        registration = find_registration(model.class)
+        return {} unless registration&.composites&.any?
 
-        model.class.attributes.each_key do |attr_name|
-          attr_value = model.public_send(attr_name)
-          next if attr_value.nil?
-
-          if attr_value.is_a?(Object) && registered?(attr_value.class)
-            add_composite_entry(composite_models, attr_name,
-                                attr_value)
-          end
-
-          next unless attr_value.is_a?(Array)
-
-          attr_value.each_with_index do |item, index|
-            next unless item.is_a?(Object) && registered?(item.class)
-
-            add_composite_entry(composite_models, "#{attr_name}.#{index}", item)
-          end
+        registration.composites.each_with_object({}) do |attr_name, result|
+          collect_composite(model, attr_name, result)
         end
-
-        composite_models
-      rescue NoMethodError
-        {}
       end
 
       private
+
+      def collect_composite(model, attr_name, result)
+        attr_value = model.public_send(attr_name)
+        return if attr_value.nil?
+
+        if attr_value.is_a?(Array)
+          collect_array_composites(attr_value, attr_name, result)
+        elsif registered?(attr_value.class)
+          add_composite_entry(result, attr_name, attr_value)
+        end
+      end
+
+      def collect_array_composites(values, attr_name, result)
+        values.each_with_index do |item, index|
+          next unless registered?(item.class)
+
+          add_composite_entry(result, "#{attr_name}.#{index}", item)
+        end
+      end
 
       def add_composite_entry(composite_models, attr_path, model_instance)
         registration = find_registration(model_instance.class)
