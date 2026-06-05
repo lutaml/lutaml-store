@@ -222,15 +222,18 @@ module Lutaml
         end
       end
 
-      def fetch(key, ttl: :default, metadata: {}, &block)
+      def fetch(key, default = nil, ttl: :default, metadata: {})
         value = get(key)
         return value unless value.nil?
 
-        return nil unless block_given?
-
-        value = block.call
-        set(key, value, ttl: ttl, metadata: metadata)
-        value
+        if block_given?
+          value = yield
+          set(key, value, ttl: ttl, metadata: metadata)
+          value
+        elsif !default.nil?
+          set(key, default, ttl: ttl, metadata: metadata)
+          default
+        end
       end
 
       def close

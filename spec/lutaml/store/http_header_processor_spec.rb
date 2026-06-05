@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require "spec_helper"
-require "lutaml/store/http_header_processor"
 
 RSpec.describe Lutaml::Store::HttpHeaderProcessor do
   describe ".parse_cache_control" do
@@ -208,7 +207,7 @@ RSpec.describe Lutaml::Store::HttpHeaderProcessor do
 
   describe ".build_conditional_headers" do
     let(:cache_entry) do
-      double(
+      Lutaml::Store::HttpCacheEntry.new(
         etag: '"abc123"',
         last_modified: Time.parse("2023-01-01 12:00:00 UTC")
       )
@@ -230,7 +229,7 @@ RSpec.describe Lutaml::Store::HttpHeaderProcessor do
     end
 
     it "handles missing ETag and Last-Modified" do
-      cache_entry_without_headers = double(etag: nil, last_modified: nil)
+      cache_entry_without_headers = Lutaml::Store::HttpCacheEntry.new
       original_headers = { "accept" => "application/json" }
 
       result = described_class.build_conditional_headers(cache_entry_without_headers, original_headers)

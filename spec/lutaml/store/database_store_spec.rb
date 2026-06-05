@@ -27,7 +27,7 @@ RSpec.describe Lutaml::Store::DatabaseStore do
 
   let(:models) do
     [
-      { model: DatabaseStoreTestModels::TestPotteryClass, key: :class_id },
+      { model: DatabaseStoreTestModels::TestPotteryClass, key: :class_id, composites: [:studio] },
       { model: DatabaseStoreTestModels::TestStudio, key: :studio_key, polymorphic_class_key: :_class },
       { model: DatabaseStoreTestModels::TestCeramicStudio, key: :studio_key, polymorphic_class_key: :_class }
     ]

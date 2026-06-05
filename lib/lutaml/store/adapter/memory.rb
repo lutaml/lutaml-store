@@ -93,6 +93,14 @@ module Lutaml
           end
         end
 
+        def each_key(&block)
+          current_keys = @mutex.synchronize do
+            cleanup_expired if @ttl_enabled
+            @data.keys
+          end
+          current_keys.each(&block)
+        end
+
         def close
           @mutex.synchronize do
             @data.clear
