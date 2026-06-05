@@ -1,1 +1,0 @@
-{:version=>"4.0", :fn=>"Jane Smith", :n=>{:family=>"Smith", :given=>"Jane", :additional=>nil, :prefix=>nil, :suffix=>nil}, :tel=>[{:value=>"+1-555-0102", :type=>"mobile", :pref=>nil}], :email=>["jane.smith@example.com"], :org=>"Design Studio", :bday=>{:value=>"1990-07-22"}, :uid=>"dc604681-c04c-4faa-9112-f0b8ece1e80d"}

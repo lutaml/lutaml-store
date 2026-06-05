@@ -1,0 +1,34 @@
+name: opal
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Opal dependencies
+        run: |
+          bundle config set with opal
+          bundle install
+
+      - name: Run Opal smoke tests
+        run: bundle exec rake spec:opal

@@ -1,1 +1,0 @@
-{:version=>"4.0", :fn=>"Lisa Anderson", :n=>{:family=>"Anderson", :given=>"Lisa", :additional=>nil, :prefix=>nil, :suffix=>nil}, :tel=>[{:value=>"+1-555-0108", :type=>"work", :pref=>nil}], :email=>["lisa.anderson@finance.com"], :org=>"Financial Services Inc", :bday=>{:value=>"1986-08-25"}, :uid=>"245aa557-bb68-4eb2-9e9e-08f7978bf760"}
