@@ -309,40 +309,154 @@ store.destroy(model: User, user_id: "u1")
 == PackageStore
 
 `PackageStore` provides structured multi-model persistence with directory and ZIP
-transports. It is built on `PackageDefinition`, which declares the package schema
-declaratively.
+transports. Use it when you need to bundle multiple model types, binary assets,
+and metadata into a single loadable package.
+
+The workflow is: define the package schema with `PackageDefinition`, then load,
+query, modify, and save using `PackageStore`.
 
 === Define a package
 
+`PackageDefinition` declares the package structure — which models, assets, and
+metadata the package contains:
+
 [source,ruby]
 ----
-glossary = Lutaml::Store::PackageDefinition.new(name: "glossary") do |pkg|
+require "lutaml/model"
+require "lutaml/store"
+
+# Define your models
+class Concept < Lutaml::Model::Serializable
+  attribute :term, :string
+  attribute :definition, :string
+end
+
+class Author < Lutaml::Model::Serializable
+  attribute :name, :string
+  attribute :email, :string
+end
+
+class GlossaryInfo < Lutaml::Model::Serializable
+  attribute :title, :string
+  attribute :version, :string
+end
+
+# Declare the package schema
+glossary = Lutaml::Store::PackageDefinition.new(
+  name: "glossary",
+  metadata_model: GlossaryInfo,
+  metadata_file: "glossary.yaml",
+  metadata_key: :title
+) do |pkg|
+  # Models stored in subdirectories, one file per instance
   pkg.model(model: Concept, key: :term, dir: "concepts", default_format: :yaml)
   pkg.model(model: Author, key: :name, dir: "authors", default_format: :json)
-  pkg.asset("glossary.yaml", type: :file)
-  pkg.metadata_model = GlossaryInfo
-  pkg.metadata_file = "glossary.yaml"
+
+  # Binary assets bundled in the package
+  pkg.asset("logo.png", type: :file)
+  pkg.asset("attachments", type: :directory)
 end
 ----
 
-=== Load and save packages
+Each `pkg.model` call registers a model type with:
+
+* `model:` — the `Lutaml::Model::Serializable` class
+* `key:` — attribute used as the unique identifier (becomes the filename)
+* `dir:` — subdirectory for this model type (use `file:` instead for a single-file model)
+* `layout:` — `:separate` (one file per instance, default) or `:grouped` (multiple instances per file)
+* `default_format:` — `:yaml`, `:json`, `:jsonl`, `:yamls`, or `:marshal`
+
+=== Directory structure
+
+When saved to disk, the glossary package produces:
+
+----
+my_glossary/
+├── glossary.yaml          # metadata (GlossaryInfo)
+├── concepts/              # Concept model instances
+│   ├── API.yaml
+│   ├── REST.yaml
+│   └── YAML.yaml
+├── authors/               # Author model instances
+│   ├── john_doe.json
+│   └── jane_smith.json
+├── logo.png               # asset file
+└── attachments/           # asset directory
+    └── spec.pdf
+----
+
+=== Load and query
 
 [source,ruby]
 ----
 # Load from directory
-store = Lutaml::Store::PackageStore.load(glossary, "./my_glossary", transport: :directory)
+store = Lutaml::Store::PackageStore.load(glossary, "./my_glossary")
 
-# Load from ZIP
+# Load from ZIP file
 store = Lutaml::Store::PackageStore.load(glossary, "./glossary.zip", transport: :zip)
 
-# Query models
-concepts = store.models_for(Concept)
-store.model_count(Concept)  # => 42
-store.fetch_model(Concept, "API")
+# Access metadata
+store.metadata  # => GlossaryInfo instance
 
-# Modify and save
-store.add_model(Concept.new(term: "REST", definition: "..."))
-store.save("./output", transport: :zip)
+# Query models
+concepts = store.models_for(Concept)   # => array of Concept instances
+concept = store.fetch_model(Concept, "API")
+store.model_count(Concept)             # => 3
+store.model_exists?(Concept, "REST")   # => true
+
+# Access assets
+store.asset("logo.png")  # => binary content
+store.asset_paths        # => ["logo.png", "attachments/spec.pdf"]
+
+# Package statistics
+store.stats
+# => { package: "glossary", models: { "Concept" => 3, "Author" => 2 },
+#      assets: 2, metadata: true }
+----
+
+=== Modify and save
+
+[source,ruby]
+----
+# Add models
+store.add_model(Concept.new(term: "JSON", definition: "..."))
+store.add_models([concept1, concept2])
+
+# Remove models
+store.remove_model(Concept, "deprecated_term")
+
+# Add/remove assets
+store.add_asset("diagram.svg", svg_content)
+store.remove_asset("old_diagram.svg")
+
+# Save to directory (default format per model)
+store.save("./output")
+
+# Save to ZIP with per-model format overrides
+store.save("./glossary.zip", transport: :zip, formats: { Concept => :json })
+
+# Save with global format override
+store.save("./output", format: :yaml)
+
+# Bulk operations
+store.clear_models(Concept)  # remove all Concept instances
+store.clear_all              # remove everything
+----
+
+=== Per-model format override
+
+The `save` method accepts format overrides:
+
+[source,ruby]
+----
+# Global format for all models
+store.save("./out", format: :json)
+
+# Per-model format
+store.save("./out", formats: { Concept => :yaml, Author => :jsonl })
+
+# Default: each model uses its default_format from the definition
+store.save("./out")
 ----
 
 === Package transports
