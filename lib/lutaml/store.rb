@@ -25,6 +25,7 @@ module Lutaml
     autoload :CompositeModelHandler, "lutaml/store/composite_model_handler"
     autoload :AttributeUpdater, "lutaml/store/attribute_updater"
     autoload :DatabaseStore, "lutaml/store/database_store"
+    autoload :FormatSerializer, "lutaml/store/format_serializer"
     autoload :PackageDefinition, "lutaml/store/package_definition"
     autoload :PackageStore, "lutaml/store/package_store"
     autoload :PackageTransport, "lutaml/store/package_transport"

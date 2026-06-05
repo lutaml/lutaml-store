@@ -139,6 +139,31 @@ RSpec.describe "Lutaml::Store file I/O" do
     end
   end
 
+  describe "Marshal grouped layout" do
+    it "round-trips models" do
+      store.save_all(items, path: tmpdir, format: :marshal, layout: :grouped)
+
+      loaded = store.load_all(FileTestItem, path: tmpdir, format: :marshal, layout: :grouped)
+      expect(loaded.size).to eq(3)
+      expect(loaded.map(&:name).sort).to eq(%w[alpha beta gamma])
+    end
+  end
+
+  describe "Marshal export" do
+    it "exports models to binary file" do
+      export_path = File.join(tmpdir, "data.bin")
+      store.export(items, path: export_path, format: :marshal)
+
+      expect(File.exist?(export_path)).to be true
+      expect(File.size(export_path)).to be > 0
+
+      data = File.binread(export_path)
+      fmt = Lutaml::Store::Format.resolve(:marshal)
+      loaded = fmt.deserialize_many(data, FileTestItem)
+      expect(loaded.size).to eq(3)
+    end
+  end
+
   # ── YAMLS format ──
   # Format::Yamls requires models with the yamls DSL (e.g. ConceptDocument).
   # For simple models without yamls DSL, use Format::Yaml (:yaml) instead.

@@ -87,3 +87,73 @@ RSpec.describe Lutaml::Store::Adapter::Base do
     expect(adapter.stats).to eq({ adapter: described_class.name })
   end
 end
+
+RSpec.describe Lutaml::Store::Adapter do
+  describe ".resolve" do
+    it "creates a Memory adapter" do
+      adapter = described_class.resolve(:memory)
+      expect(adapter).to be_a(Lutaml::Store::Adapter::Memory)
+    end
+
+    it "creates a FileSystem adapter with options" do
+      Dir.mktmpdir do |dir|
+        adapter = described_class.resolve(:filesystem, { path: dir })
+        expect(adapter).to be_a(Lutaml::Store::Adapter::FileSystem)
+      end
+    end
+
+    it "raises ConfigurationError for unknown adapter type" do
+      expect { described_class.resolve(:unknown) }
+        .to raise_error(Lutaml::Store::ConfigurationError, /Unknown adapter/)
+    end
+  end
+
+  describe ".register" do
+    it "allows registering a custom adapter class" do
+      custom_class = Class.new(Lutaml::Store::Adapter::Base) do
+        def initialize(opts = {})
+          super
+          @data = {}
+        end
+
+        def get(key)
+          @data[key]
+        end
+
+        def set(key, value)
+          @data[key] = value
+        end
+
+        def delete(key)
+          @data.delete(key)
+        end
+
+        def exists?(key)
+          @data.key?(key)
+        end
+
+        def keys
+          @data.keys
+        end
+
+        def all
+          @data.values
+        end
+
+        def clear
+          @data.clear
+        end
+
+        def size
+          @data.size
+        end
+      end
+
+      stub_const("MyCustomAdapter", custom_class)
+      described_class.register(:custom, custom_class)
+
+      adapter = described_class.resolve(:custom)
+      expect(adapter).to be_a(custom_class)
+    end
+  end
+end

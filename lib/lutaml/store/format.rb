@@ -13,13 +13,15 @@ module Lutaml
       autoload :Json, "lutaml/store/format/json"
       autoload :Jsonl, "lutaml/store/format/jsonl"
       autoload :MarshalFormat, "lutaml/store/format/marshal_format"
+      autoload :Xml, "lutaml/store/format/xml"
 
       FORMATS = {
         yaml: "Yaml",
         yamls: "Yamls",
         json: "Json",
         jsonl: "Jsonl",
-        marshal: "MarshalFormat"
+        marshal: "MarshalFormat",
+        xml: "Xml"
       }.freeze
 
       def self.resolve(format)

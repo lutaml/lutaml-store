@@ -62,10 +62,25 @@ RSpec.describe Lutaml::Store::Format::Yamls do
 
   describe "#serialize_many" do
     it "serializes a single model identically to #serialize" do
-      # In GCR, each file has exactly one concept (one group per key).
-      # serialize_many([single]) == serialize(single).
       result = fmt.serialize_many([model])
       expect(result).to eq(fmt.serialize(model))
+    end
+
+    it "separates models with newline to prevent data corruption" do
+      model2 = YamlsTestModel.new(
+        header: YamlsTestHeader.new(id: "test-2", name: "Second"),
+        parts: [YamlsTestPart.new(label: "c", value: "3")]
+      )
+      result = fmt.serialize_many([model, model2])
+      # Each model's stream ends before the next one starts
+      expect(result).to match(/value: '2'\n---\nid: test-2/)
+    end
+
+    it "produces output with proper document boundaries for single model" do
+      result = fmt.serialize_many([model])
+      loaded = fmt.deserialize_many(result, YamlsTestModel)
+      expect(loaded.size).to eq(1)
+      expect(loaded.first.header.id).to eq("test-1")
     end
   end
 
