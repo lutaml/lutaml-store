@@ -27,6 +27,10 @@ module Lutaml
         def deserialize_many(_data, _model_class)
           raise NotImplementedError, "#{self.class} does not support multi-document deserialization"
         end
+
+        def binary?
+          false
+        end
       end
     end
   end
