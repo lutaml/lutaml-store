@@ -1,1 +1,0 @@
-{:version=>"4.0", :fn=>"John Doe", :n=>{:family=>"Doe", :given=>"John", :additional=>nil, :prefix=>nil, :suffix=>nil}, :tel=>[{:value=>"+1-555-0101", :type=>"work", :pref=>nil}], :email=>["john.doe@example.com", "j.doe@work.com"], :org=>"Tech Corp", :bday=>{:value=>"1985-03-15"}, :uid=>"a62ceddc-eac7-4a93-9a45-b356acbc3509"}

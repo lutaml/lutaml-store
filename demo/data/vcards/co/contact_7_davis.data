@@ -1,1 +1,0 @@
-{:version=>"4.0", :fn=>"Michael Davis", :n=>{:family=>"Davis", :given=>"Michael", :additional=>nil, :prefix=>nil, :suffix=>nil}, :tel=>[{:value=>"+1-555-0107", :type=>"mobile", :pref=>nil}], :email=>["mike.davis@agency.com"], :org=>"Creative Agency", :bday=>{:value=>"1992-05-18"}, :uid=>"1bdba76a-276e-43ad-81bb-383615b1be86"}
