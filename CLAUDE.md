@@ -28,30 +28,43 @@ This is a Ruby gem (`lutaml-store`) providing a store-centric database-style API
 
 | Class | Role |
 |---|---|
-| `DatabaseStore` | High-level CRUD with model registry, composite models, polymorphism |
+| `DatabaseStore` | High-level CRUD with model registry, composite models, polymorphism, file I/O |
 | `BasicStore` | Low-level key-value store with optional cache/monitor/events |
 | `CacheStore` | TTL-aware cache store extending `BasicStore` |
+| `PackageStore` | Structured multi-model packages with directory/ZIP transport |
+| `PackageDefinition` | Declarative schema for package structure (models, assets, metadata) |
 | `ModelRegistry` / `ModelRegistration` | Register models with their key fields and polymorphic config |
 | `CompositeModelHandler` | Stores nested registered models independently, restores references |
 | `AttributeUpdater` | Processes updates including dot-notation paths and block-based updates |
-| `ModelSerializer` | Single point of serialization/deserialization for Lutaml::Model objects |
-| `Config` | Parses and validates store configuration (adapter, cache, monitoring, compression) |
+| `ModelSerializer` | Hash-based serialization/deserialization for key-value storage |
+| `FormatSerializer` | Bridges any Format handler to ModelSerializer interface for DatabaseStore |
+| `Format` | Multi-format file I/O (YAML, YAMLS, JSON, JSONL, Marshal, XML) |
+| `Adapter` | Storage adapter registry and factory (Memory, FileSystem, SQLite) |
+
+### Format handlers (`lib/lutaml/store/format/`)
+
+All inherit from `Format::Base`. Six formats: `Yaml`, `Yamls`, `Json`, `Jsonl`, `MarshalFormat`, `Xml`. Each implements `serialize`/`deserialize`, optional `serialize_many`/`deserialize_many`, `extension`, `glob_pattern`, and `binary?`. Registered in `Format::FORMATS` hash and resolved via `Format.resolve(:symbol)`.
 
 ### Storage adapters (`lib/lutaml/store/adapter/`)
 
-All inherit from `Adapter::Base`. Three backends: `Memory`, `FileSystem`, `SQLite`. The `DatabaseStore` creates the adapter internally via `BasicStore`; the adapter type is passed as `adapter: :memory`, `adapter: { type: :filesystem, path: "..." }`, etc.
+All inherit from `Adapter::Base`. Three backends: `Memory`, `FileSystem`, `SQLite`. Registered in `Adapter` module and resolved via `Adapter.resolve(:type, options)`. New adapters can be added with `Adapter.register(:custom, CustomClass)` without modifying existing code (OCP).
+
+### PackageStore and transports
+
+`PackageStore` provides structured multi-model persistence. `PackageDefinition` declares which models, assets, and metadata the package contains. Transports (`DirectoryTransport`, `ZipTransport`) handle reading/writing to disk. Format handlers determine serialization per model entry.
+
+### FormatSerializer pattern
+
+`FormatSerializer` wraps a Format handler to implement the serializer interface (serialize/deserialize). This enables `DatabaseStore` to use any format (YAMLS, XML, Marshal, etc.) for key-value storage instead of the default hash serialization. Used for Glossarist-like YAMLS patterns.
 
 ### HTTP caching
 
-`HttpCache` provides HTTP-aware caching with ETags, conditional requests (304), Cache-Control, and Vary header support. Used by lutaml-hal to avoid re-fetching HAL resources.
-
-### Serialization & integrity
-
-`Compression` adds gzip support. `Integrity` provides SHA256 checksums for data verification (used by the FileSystem adapter).
+`HttpCache` provides HTTP-aware caching with ETags, conditional requests (304), Cache-Control, and Vary header support. Uses `to_json`/`from_json` for model-driven serialization.
 
 ## Conventions
 
 - Double-quoted strings (Rubocop enforced)
 - Specs use `expect` syntax (no `should`)
-- Documentation is in AsciiDoc (README.adoc, plan.adoc)
+- Documentation is in AsciiDoc (README.adoc)
+- All library code uses Ruby `autoload` (no `require_relative` or internal `require`)
 - Error hierarchy: `Lutaml::Store::Error` → `ConfigurationError`, `BackendError`, `ModelNotRegisteredError`, `InvalidKeyError`, `PolymorphicUpdateError`, `CompositeModelError`
