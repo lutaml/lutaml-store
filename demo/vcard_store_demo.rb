@@ -47,12 +47,12 @@ class VCardStoreDemo
 
   def setup_stores
     # Memory store for fast operations
-    @stores[:memory] = Lutaml::Store::Store.new(
+    @stores[:memory] = Lutaml::Store::BasicStore.new(
       adapter: { type: :memory }
     )
 
     # Filesystem store for persistence
-    @stores[:filesystem] = Lutaml::Store::Store.new(
+    @stores[:filesystem] = Lutaml::Store::BasicStore.new(
       adapter: {
         type: :filesystem,
         options: { path: "demo/data/vcards" }
@@ -60,7 +60,7 @@ class VCardStoreDemo
     )
 
     # SQLite store for structured queries
-    @stores[:sqlite] = Lutaml::Store::Store.new(
+    @stores[:sqlite] = Lutaml::Store::BasicStore.new(
       adapter: {
         type: :sqlite,
         options: { path: "demo/data/vcards.db" }
@@ -342,7 +342,7 @@ class VCardStoreDemo
     puts "-" * 30
 
     # Create a store with integrity checking
-    integrity_store = Lutaml::Store::Store.new(
+    integrity_store = Lutaml::Store::BasicStore.new(
       adapter: { type: :memory },
       integrity: { enabled: true, algorithm: :sha256 }
     )
@@ -356,7 +356,7 @@ class VCardStoreDemo
     puts "✅ Integrity verified for: #{vcard.fn}" if integrity_store.exists?(vcard.uid)
 
     # Demonstrate compression
-    compressed_store = Lutaml::Store::Store.new(
+    compressed_store = Lutaml::Store::BasicStore.new(
       adapter: { type: :memory },
       compression: { enabled: true, algorithm: :gzip }
     )
