@@ -28,6 +28,25 @@ module Lutaml
 
         const_get(entry).new
       end
+
+      def self.for_extension(ext)
+        extension_map[ext] || extension_map[".#{ext.to_s.sub(/\A\./, "")}"]
+      end
+
+      private_class_method def self.extension_map
+        @extension_map ||= begin
+          map = {}
+          FORMATS.each_value do |class_name|
+            fmt = const_get(class_name).new
+            ext = fmt.extension
+            next if map.key?(ext)
+
+            map[ext] = fmt
+            map[".yml"] = fmt if ext == ".yaml"
+          end
+          map.freeze
+        end
+      end
     end
   end
 end

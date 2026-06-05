@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "json"
-
 module Lutaml
   module Store
     class HttpCache
@@ -145,9 +143,7 @@ module Lutaml
           data = @adapter.get(key)
           next unless data
 
-          entry_data = data.is_a?(String) ? JSON.parse(data) : data
-          entry = HttpCacheEntry.from_hash(entry_data)
-          entries << entry
+          entries << HttpCacheEntry.from_json(data)
         rescue StandardError
           # Skip invalid entries
         end
@@ -174,20 +170,14 @@ module Lutaml
         data = @adapter.get(cache_key)
         return nil unless data
 
-        # Handle both serialized and hash data
-        entry_data = data.is_a?(String) ? JSON.parse(data) : data
-        HttpCacheEntry.from_hash(entry_data)
+        HttpCacheEntry.from_json(data)
       rescue StandardError
-        # Log error and continue without cache
         nil
       end
 
       def store_entry(cache_key, entry)
-        # Serialize entry for storage
-        data = entry.to_hash
-        @adapter.set(cache_key, data)
+        @adapter.set(cache_key, entry.to_json)
       rescue StandardError
-        # Log error but don't fail the request
         false
       end
 
