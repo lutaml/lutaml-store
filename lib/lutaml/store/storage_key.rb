@@ -18,7 +18,7 @@ module Lutaml
 
       def self.parse(string)
         str = string.to_s
-        sep = str.rindex(/(?<!:):(?!:)/)
+        sep = str.index(/(?<!:):(?!:)/)
         return new("", str) unless sep
 
         new(str[0...sep], str[sep + 1..])
