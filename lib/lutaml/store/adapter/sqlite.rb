@@ -23,9 +23,11 @@ module Lutaml
           setup_database
         end
 
+        # ── Key-value operations ──
+
         def get(key)
           result = nil
-          execute_query("SELECT value FROM #{@table_name} WHERE key = ?", [key]) do |row|
+          execute_query_raw("SELECT value FROM #{@table_name} WHERE key = ?", [key]) do |row|
             value = row[0]
             begin
               result = JSON.parse(value)
@@ -55,7 +57,7 @@ module Lutaml
         end
 
         def exists?(key)
-          execute_query("SELECT 1 FROM #{@table_name} WHERE key = ? LIMIT 1", [key]) do |_row|
+          execute_query_raw("SELECT 1 FROM #{@table_name} WHERE key = ? LIMIT 1", [key]) do |_row|
             return true
           end
           false
@@ -63,7 +65,7 @@ module Lutaml
 
         def all
           result = {}
-          execute_query("SELECT key, value FROM #{@table_name}") do |row|
+          execute_query_raw("SELECT key, value FROM #{@table_name}") do |row|
             result[row[0]] = row[1]
           end
           result
@@ -76,7 +78,7 @@ module Lutaml
         end
 
         def size
-          execute_query("SELECT COUNT(*) FROM #{@table_name}") do |row|
+          execute_query_raw("SELECT COUNT(*) FROM #{@table_name}") do |row|
             return row[0]
           end
           0
@@ -84,7 +86,7 @@ module Lutaml
 
         def keys
           result = []
-          execute_query("SELECT key FROM #{@table_name}") do |row|
+          execute_query_raw("SELECT key FROM #{@table_name}") do |row|
             result << row[0]
           end
           result
@@ -132,6 +134,56 @@ module Lutaml
           result
         end
 
+        # ── Query operations ──
+
+        def execute_query(query)
+          sql, params = build_select_sql(query)
+          results = []
+          execute_query_raw(sql, params) do |row|
+            key = row[0]
+            value = parse_json_value(row[1])
+            results << [key, value]
+          end
+          results
+        end
+
+        def count_query(query)
+          sql, params = build_count_sql(query)
+          execute_query_raw(sql, params) do |row|
+            return row[0]
+          end
+          0
+        end
+
+        def batch_query(query, after: nil, limit: 1000)
+          conditions, params = build_conditions(query)
+
+          if after
+            conditions << "key > ?"
+            params << after
+          end
+
+          sql = "SELECT key, value FROM #{@table_name}"
+          sql += " WHERE #{conditions.join(" AND ")}" unless conditions.empty?
+          sql += " ORDER BY key ASC"
+          sql += " LIMIT ?"
+          params << limit
+
+          results = []
+          execute_query_raw(sql, params) do |row|
+            key = row[0]
+            value = parse_json_value(row[1])
+            results << [key, value]
+          end
+          results
+        end
+
+        def transaction(&block)
+          @db.transaction(&block)
+        rescue SQLite3::Exception => e
+          raise BackendError, "Transaction failed: #{e.message}"
+        end
+
         private
 
         def setup_database
@@ -161,7 +213,129 @@ module Lutaml
           @db.execute("CREATE INDEX IF NOT EXISTS idx_#{@table_name}_updated_at ON #{@table_name} (updated_at)")
         end
 
-        def execute_query(sql, params = [])
+        # ── SQL generation ──
+
+        def build_select_sql(query)
+          conditions, params = build_conditions(query)
+
+          sql = "SELECT key, value FROM #{@table_name}"
+          sql += " WHERE #{conditions.join(" AND ")}" unless conditions.empty?
+          sql += build_order_clause(query.orders)
+          sql += build_limit_offset(query.limit_value, query.offset_value, params)
+
+          [sql, params]
+        end
+
+        def build_count_sql(query)
+          conditions, params = build_conditions(query)
+
+          sql = "SELECT COUNT(*) FROM #{@table_name}"
+          sql += " WHERE #{conditions.join(" AND ")}" unless conditions.empty?
+
+          [sql, params]
+        end
+
+        def build_conditions(query)
+          conditions = ["key LIKE ?"]
+          params = ["#{query.model_class.name}:%"]
+
+          query.predicates.each do |pred|
+            clause, bind = translate_predicate(pred)
+            next unless clause
+
+            conditions << clause
+            params.concat(bind)
+          end
+
+          [conditions, params]
+        end
+
+        SIMPLE_PREDICATES = {
+          Predicate::Equal => "=",
+          Predicate::NotEqual => "!=",
+          Predicate::GreaterThan => ">",
+          Predicate::LessThan => "<",
+          Predicate::GreaterThanOrEqual => ">=",
+          Predicate::LessThanOrEqual => "<="
+        }.freeze
+
+        def translate_predicate(pred)
+          field_json = "json_extract(value, '$.#{pred.field}')"
+
+          op = SIMPLE_PREDICATES[pred.class]
+          return ["#{field_json} #{op} ?", [pred.value]] if op
+
+          case pred
+          when Predicate::Between
+            ["#{field_json} BETWEEN ? AND ?", [pred.value.first, pred.value.last]]
+          when Predicate::NotBetween
+            ["#{field_json} NOT BETWEEN ? AND ?", [pred.value.first, pred.value.last]]
+          when Predicate::In
+            ["#{field_json} IN (#{in_placeholders(pred)})", pred.value]
+          when Predicate::NotIn
+            ["#{field_json} NOT IN (#{in_placeholders(pred)})", pred.value]
+          when Predicate::Matches
+            translate_matches(field_json, pred, "LIKE")
+          when Predicate::NotMatches
+            translate_matches(field_json, pred, "NOT LIKE")
+          when Predicate::Nil
+            ["#{field_json} IS NULL", []]
+          when Predicate::NotNil
+            ["#{field_json} IS NOT NULL", []]
+          end
+        end
+
+        def in_placeholders(pred)
+          pred.value.map { "?" }.join(", ")
+        end
+
+        def translate_matches(field_json, pred, op)
+          pattern = pred.value.is_a?(Regexp) ? regex_to_like(pred.value) : "%#{pred.value}%"
+          ["#{field_json} #{op} ?", [pattern]]
+        end
+
+        def pred_value(pred) # :nodoc:
+          pred.value
+        end
+
+        def build_order_clause(orders)
+          return "" if orders.empty?
+
+          clauses = orders.map do |o|
+            dir = o.direction == :desc ? "DESC" : "ASC"
+            "json_extract(value, '$.#{o.field}') #{dir} NULLS LAST"
+          end
+          " ORDER BY #{clauses.join(", ")}"
+        end
+
+        def build_limit_offset(limit, offset, params)
+          sql = ""
+          if limit
+            sql += " LIMIT ?"
+            params << limit.to_i
+          end
+          if offset
+            sql += " OFFSET ?"
+            params << offset.to_i
+          end
+          sql
+        end
+
+        def regex_to_like(regex)
+          source = regex.source
+          pattern = source.gsub(".+", "%").gsub(".*", "%").gsub(".", "_").gsub("^", "").gsub("$", "")
+          "%#{pattern}%"
+        end
+
+        def parse_json_value(raw)
+          JSON.parse(raw)
+        rescue JSON::ParserError
+          raw
+        end
+
+        # ── Raw query helpers ──
+
+        def execute_query_raw(sql, params = [])
           @db.execute(sql, params) do |row|
             yield row if block_given?
           end
@@ -182,7 +356,7 @@ module Lutaml
         end
 
         def get_schema_version
-          execute_query("PRAGMA user_version") do |row|
+          execute_query_raw("PRAGMA user_version") do |row|
             return row[0]
           end
           0

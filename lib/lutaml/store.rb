@@ -32,6 +32,8 @@ module Lutaml
     autoload :Adapter, "lutaml/store/adapter"
     autoload :StorageKey, "lutaml/store/storage_key"
     autoload :Format, "lutaml/store/format"
+    autoload :Query, "lutaml/store/query"
+    autoload :Predicate, "lutaml/store/predicate"
 
     autoload :HttpCache, "lutaml/store/http_cache"
     autoload :HttpCacheConfig, "lutaml/store/http_cache_config"
