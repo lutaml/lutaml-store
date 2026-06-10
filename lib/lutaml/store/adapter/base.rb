@@ -8,6 +8,8 @@ module Lutaml
           @config = config
         end
 
+        # ── Key-value operations ──
+
         def get(key)
           raise NotImplementedError
         end
@@ -58,6 +60,32 @@ module Lutaml
 
         def bulk_delete(keys)
           keys.each_with_object({}) { |k, h| h[k] = delete(k) }
+        end
+
+        # ── Query operations ──
+
+        # Execute a query specification.
+        # Returns array of [storage_key, hash_data] pairs, sorted and paginated.
+        # Returns nil to indicate "not supported — fall back to in-memory scan".
+        def execute_query(_query)
+          nil
+        end
+
+        # Count matching records without returning data.
+        # Returns nil to indicate "not supported — count execute_query results".
+        def count_query(_query)
+          nil
+        end
+
+        # Fetch a batch of [storage_key, hash_data] pairs for keyset pagination.
+        # Returns nil to indicate "not supported — fall back to in-memory".
+        def batch_query(_query, _after: nil, _limit: 1000)
+          nil
+        end
+
+        # Execute a block atomically. No-op for adapters without transaction support.
+        def transaction
+          yield
         end
 
         def stats
