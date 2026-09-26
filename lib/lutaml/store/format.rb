@@ -31,6 +31,19 @@ module Lutaml
         const_get(entry).new
       end
 
+      # Self-describing content: XML documents start with "<?xml" or "<",
+      # JSON with "{" or "["; everything else is YAML, the ecosystem's
+      # default. Extensionless records (object-storage keys carry no
+      # extension) declare their format this way instead of by guesswork
+      # out of band.
+      def self.guess(data)
+        stripped = data.to_s.lstrip
+        return :xml if stripped.start_with?("<?xml", "<")
+        return :json if stripped.start_with?("{", "[")
+
+        :yaml
+      end
+
       def self.for_extension(ext)
         extension_map[ext] || extension_map[".#{ext.to_s.sub(/\A\./, "")}"]
       end

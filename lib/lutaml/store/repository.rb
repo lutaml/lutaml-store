@@ -1,7 +1,9 @@
 # frozen_string_literal: true
 
 require "cgi"
+require "digest"
 require "fileutils"
+require "json"
 
 module Lutaml
   module Store
@@ -110,16 +112,34 @@ module Lutaml
       private
 
       # The write-through target is a Directory package (the Mirror layout);
-      # anything else is a configuration error, not a duck-type guess.
+      # anything else is a configuration error, not a duck-type guess. The
+      # package manifest is maintained on every write so later reads —
+      # including reference resolution and offline mode — see the entry.
       def write_cache_entry(key, body)
         unless @cache.is_a?(Source::Directory)
           raise ConfigurationError,
                 "cache must be a Source::Directory package, got #{@cache.class}"
         end
 
-        dir = ::File.join(@cache.package_root, "entries")
-        FileUtils.mkdir_p(dir)
-        ::File.write(::File.join(dir, Source.encode_key(key)), body, encoding: "UTF-8")
+        location = "entries/#{Source.encode_key(key)}"
+        FileUtils.mkdir_p(::File.join(@cache.package_root, "entries"))
+        ::File.write(::File.join(@cache.package_root, location), body, encoding: "UTF-8")
+
+        manifest = begin
+          @cache.manifest
+        rescue NotFoundError
+          Lutaml::Store::Manifest.build([])
+        end
+        entry = Manifest::Entry.new(
+          key: key, location: location,
+          digest: "sha256:#{Digest::SHA256.hexdigest(body)}"
+        )
+        entries = manifest.entries.reject { |e| e.key == key } + [entry]
+        updated = Manifest.build(entries, shards: manifest.shards)
+        ::File.write(
+          ::File.join(@cache.package_root, "manifest.json"),
+          JSON.pretty_generate(updated.to_hash)
+        )
       end
 
       def format_for(key)

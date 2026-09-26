@@ -61,6 +61,26 @@ module Lutaml
           Source.for(:directory, path: root)
         end
 
+        # Packs an existing package directory (as written by .pull) into a
+        # distributable .zip — the "downloaded official package" artifact.
+        # Source::Zip reads it back with no unpacking step.
+        #
+        # @param package_dir [String] a directory containing manifest.json + entries/
+        # @param to [String] the .zip path to write
+        # @return [String] the path written
+        def pack(package_dir, to:)
+          require "zip"
+          FileUtils.mkdir_p(::File.dirname(to))
+          ::Zip::File.open(to, create: true) do |zip|
+            Dir["#{package_dir}/**/*"].sort.each do |path|
+              next if ::File.directory?(path)
+
+              zip.add(path.delete_prefix("#{package_dir}/"), path)
+            end
+          end
+          to
+        end
+
         private
 
         def write_if_changed(path, body, force)

@@ -75,6 +75,31 @@ RSpec.describe Lutaml::Store::Mirror do
   end
 end
 
+RSpec.describe Lutaml::Store::Format do
+  it "guesses the format of self-describing content" do
+    expect(described_class.guess("<?xml version='1.0'?><bibdata/>")).to eq(:xml)
+    expect(described_class.guess("  {\"id\": 1}")).to eq(:json)
+    expect(described_class.guess("---\nid: RFC7231\n")).to eq(:yaml)
+  end
+end
+
+RSpec.describe Lutaml::Store::Mirror do
+  it "packs a pulled package into a zip that Source::Zip reads in place" do
+    skip "conformance fixtures not found at #{FIXTURE_ROOT}" unless File.directory?(FIXTURE_ROOT)
+
+    into = Dir.mktmpdir
+    local = described_class.pull(
+      Lutaml::Store::Source.for(:directory, path: FIXTURE_ROOT), into: into, collection: "ietf"
+    )
+    zip_path = File.join(into, "ietf.zip")
+    described_class.pack(local.package_root, to: zip_path)
+
+    zipped = Lutaml::Store::Source.for(:zip, path: zip_path)
+    expect(zipped.keys).to eq(local.keys)
+    expect(zipped.read("RFC 7231")).to include("RFC7231")
+  end
+end
+
 RSpec.describe Lutaml::Store::Repository do
   let(:fixtures) { FIXTURE_ROOT }
 
