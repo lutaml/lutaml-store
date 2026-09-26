@@ -182,6 +182,15 @@ RSpec.describe Lutaml::Store::Source::Rest do
     expect { rest(boom).read("RFC 7231") }.to raise_error(Lutaml::Store::BackendError)
   end
 
+  it "fetches a declared shard's keys" do
+    routes = {
+      "collections/ietf/shards/12" => {
+        status_code: 200, headers: {}, body: JSON.generate({ keys: %w[rfc7231 rfc3986] })
+      }
+    }
+    expect(rest(routes).shard(12)).to eq(%w[rfc7231 rfc3986])
+  end
+
   it "lists collections" do
     routes = {
       "collections" => {
