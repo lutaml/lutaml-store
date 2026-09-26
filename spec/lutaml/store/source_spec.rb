@@ -39,11 +39,13 @@ RSpec.describe Lutaml::Store::Source::Directory do
 
   before do
     FileUtils.mkdir_p(File.join(root, "entries"))
-    File.write(File.join(root, "entries", "rfc7231.yaml"), "id: RFC7231\n")
-    File.write(File.join(root, "manifest.json"),
-               JSON.generate({ version: 1, count: 1,
-                               entries: [{ key: "RFC 7231",
-                                           location: "entries/rfc7231.yaml" }] }))
+    # byte-verbatim fixtures: the source reads binary, so CRLF text-mode
+    # writes would break byte equality on Windows
+    File.binwrite(File.join(root, "entries", "rfc7231.yaml"), "id: RFC7231\n")
+    File.binwrite(File.join(root, "manifest.json"),
+                  JSON.generate({ version: 1, count: 1,
+                                  entries: [{ key: "RFC 7231",
+                                              location: "entries/rfc7231.yaml" }] }))
   end
 
   it "reads an entry by key" do

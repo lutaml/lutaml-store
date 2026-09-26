@@ -20,7 +20,8 @@ module Lutaml
         def configure
           @path = require_option(:path)
           @package_root = @path
-          FileUtils.mkdir_p(@path) unless File.directory?(@path)
+          # A read-only source never writes - not even directory creation.
+          # A missing path simply holds no entries and no manifest.
         end
 
         def entry_path(key)
