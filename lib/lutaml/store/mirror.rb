@@ -84,9 +84,7 @@ module Lutaml
         private
 
         def write_if_changed(path, body, force)
-          if !force && ::File.file?(path) && ::File.binread(path) == body
-            return
-          end
+          return if !force && ::File.file?(path) && ::File.binread(path) == body
 
           ::File.binwrite(path, body)
         end
