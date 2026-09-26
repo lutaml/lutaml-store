@@ -119,16 +119,24 @@ module Lutaml
 
         location = "entries/#{Source.encode_key(key)}"
         FileUtils.mkdir_p(::File.join(@cache.package_root, "entries"))
-        ::File.write(::File.join(@cache.package_root, location), body, encoding: "UTF-8")
+        ::File.binwrite(::File.join(@cache.package_root, location), body)
 
         manifest = begin
           @cache.manifest
         rescue NotFoundError
           Lutaml::Store::Manifest.build([])
         end
+        # The source manifest's metadata (e.g. the domain docid) rides
+        # along — offline reference resolution depends on it.
+        declared = begin
+          @source.manifest.entry_for(key)
+        rescue StandardError
+          nil
+        end
         entry = Manifest::Entry.new(
           key: key, location: location,
-          digest: "sha256:#{Digest::SHA256.hexdigest(body)}"
+          digest: "sha256:#{Digest::SHA256.hexdigest(body)}",
+          metadata: declared&.metadata || {}
         )
         entries = manifest.entries.reject { |e| e.key == key } + [entry]
         updated = Manifest.build(entries, shards: manifest.shards)
