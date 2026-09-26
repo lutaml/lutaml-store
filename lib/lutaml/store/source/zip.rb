@@ -15,9 +15,9 @@ module Lutaml
 
         def configure
           @path = require_option(:path)
-          unless File.file?(@path)
-            raise ConfigurationError, "no such package file: #{@path}"
-          end
+          return if File.file?(@path)
+
+          raise ConfigurationError, "no such package file: #{@path}"
         end
 
         def with_zip(&block)

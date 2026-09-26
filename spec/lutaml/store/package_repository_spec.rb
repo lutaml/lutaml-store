@@ -66,9 +66,9 @@ RSpec.describe Lutaml::Store::Mirror do
     }
     bad_origin = Lutaml::Store::Source.for(
       :rest, base_url: "https://x.test", collection: "c",
-      transport: lambda do |uri, _h|
-        routes.fetch(uri.path.sub(%r{\A/}, "")) { { status_code: 404, headers: {}, body: "" } }
-      end
+             transport: lambda do |uri, _h|
+               routes.fetch(uri.path.sub(%r{\A/}, "")) { { status_code: 404, headers: {}, body: "" } }
+             end
     )
     expect { described_class.pull(bad_origin, into: into) }
       .to raise_error(described_class::IntegrityError, /digest mismatch/)
@@ -129,8 +129,10 @@ RSpec.describe Lutaml::Store::Repository do
   end
 
   it "refuses offline mode without a cache — explicitly, never by guessing" do
-    expect { described_class.new(source: Lutaml::Store::Source.for(:directory, path: fixtures),
-                                 mode: :offline) }
+    expect do
+      described_class.new(source: Lutaml::Store::Source.for(:directory, path: fixtures),
+                          mode: :offline)
+    end
       .to raise_error(Lutaml::Store::ConfigurationError, /offline mode requires a cache/)
   end
 

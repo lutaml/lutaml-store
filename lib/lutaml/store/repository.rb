@@ -37,12 +37,8 @@ module Lutaml
       #   package (same layout as Mirror#pull writes); nil disables caching
       # @param mode [Symbol] :online or :offline
       def initialize(source:, cache: nil, mode: :online)
-        unless MODES.include?(mode)
-          raise ConfigurationError, "mode must be one of #{MODES.inspect}"
-        end
-        if mode == :offline && cache.nil?
-          raise ConfigurationError, "offline mode requires a cache source"
-        end
+        raise ConfigurationError, "mode must be one of #{MODES.inspect}" unless MODES.include?(mode)
+        raise ConfigurationError, "offline mode requires a cache source" if mode == :offline && cache.nil?
 
         @source = source
         @cache = cache
@@ -53,7 +49,7 @@ module Lutaml
       # backend, just shorter.
       def self.for_cloud(base_url:, collection:, cache: nil, **source_options)
         new(source: Source.for(:rest, base_url: base_url, collection: collection,
-                               **source_options), cache: cache)
+                                      **source_options), cache: cache)
       end
 
       def self.for_package(path, type: :directory, **source_options)
