@@ -34,7 +34,7 @@ module Lutaml
           base = require_option(:base_url)
           @base = URI.parse(base.to_s)
           raise ConfigurationError, "base_url must be http(s)" unless @base.is_a?(URI::HTTP) ||
-            @base.is_a?(URI::HTTPS)
+                                                                      @base.is_a?(URI::HTTPS)
 
           @headers = @options.fetch(:headers, {})
           @timeout = @options.fetch(:timeout, 60)
