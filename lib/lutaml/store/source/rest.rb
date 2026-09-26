@@ -45,6 +45,16 @@ module Lutaml
         def collections
           JSON.parse(fetch(url_for("collections"))[:body])["collections"]
         end
+
+        # The keys of one declared shard, when the collection's manifest
+        # advertises sharding. Shard-number semantics belong to the domain;
+        # this only fetches the named part.
+        #
+        # @param number [Integer]
+        # @return [Array<String>]
+        def shard(number)
+          JSON.parse(fetch(url_for(collection_path("/shards/#{Integer(number)}")))[:body])["keys"]
+        end
       end
     end
   end
