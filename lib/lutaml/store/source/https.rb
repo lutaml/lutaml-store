@@ -89,7 +89,9 @@ module Lutaml
         end
 
         def url_for(relative_path)
-          URI.parse(@base.to_s.sub(%r{/+\z}, "") + "/" + relative_path.sub(%r{\A/+}, ""))
+          base = @base.to_s.sub(%r{/+\z}, "")
+          path = relative_path.sub(%r{\A/+}, "")
+          URI.parse("#{base}/#{path}")
         end
 
         public
