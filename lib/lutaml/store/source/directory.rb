@@ -30,7 +30,7 @@ module Lutaml
         public
 
         def read(key)
-          File.read(entry_path(key), encoding: "UTF-8")
+          File.binread(entry_path(key))
         rescue Errno::ENOENT
           raise NotFoundError, "no entry #{key.inspect} in #{@path}"
         rescue SystemCallError => e
@@ -38,7 +38,7 @@ module Lutaml
         end
 
         def manifest_raw
-          File.read(File.join(@path, "manifest.json"), encoding: "UTF-8")
+          File.binread(File.join(@path, "manifest.json"))
         rescue Errno::ENOENT
           raise NotFoundError, "no manifest.json in #{@path}"
         end
