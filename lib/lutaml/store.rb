@@ -5,6 +5,7 @@ module Lutaml
     class Error < StandardError; end
     class ConfigurationError < Error; end
     class BackendError < Error; end
+    class NotFoundError < Error; end
     class ModelNotRegisteredError < Error; end
     class InvalidKeyError < Error; end
     class PolymorphicUpdateError < Error; end
@@ -39,6 +40,10 @@ module Lutaml
     autoload :HttpCacheConfig, "lutaml/store/http_cache_config"
     autoload :HttpCacheEntry, "lutaml/store/http_cache_entry"
     autoload :HttpHeaderProcessor, "lutaml/store/http_header_processor"
+    autoload :Manifest, "lutaml/store/manifest"
+    autoload :Mirror, "lutaml/store/mirror"
+    autoload :Repository, "lutaml/store/repository"
+    autoload :Source, "lutaml/store/source"
 
     def self.new(adapter:, models: [], **options)
       DatabaseStore.new(adapter: adapter, models: models, **options)
