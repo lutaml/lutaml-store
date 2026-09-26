@@ -143,4 +143,24 @@ RSpec.describe Lutaml::Store::Repository do
     local = cloud.pull!(into: Dir.mktmpdir, collection: "ietf")
     expect(local.keys).to eq(cloud.keys)
   end
+
+  it "pulls a source into a package without conformance fixtures" do
+    origin = Lutaml::Store::Source.for(
+      :rest, base_url: "https://x.test", collection: "c",
+      transport: lambda do |uri, _h|
+        path = uri.path.sub(%r{\A/}, "")
+        if path.end_with?("/manifest")
+          { status_code: 200, headers: {},
+            body: JSON.generate(version: 1, count: 1,
+                                entries: [{ key: "k", location: "entries/k",
+                                            digest: "sha256:#{Digest::SHA256.hexdigest('bytes')}" }]) }
+        else
+          { status_code: 200, headers: {}, body: "bytes" }
+        end
+      end
+    )
+    repo = described_class.new(source: origin)
+    local = repo.pull!(into: Dir.mktmpdir)
+    expect(local.keys).to eq(["k"])
+  end
 end
