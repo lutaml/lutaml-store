@@ -1,0 +1,46 @@
+---
+import Base from "../layouts/Base.astro";
+---
+<Base title="Lutaml::Store">
+  <main class="max-w-3xl mx-auto px-6 py-16">
+    <h1 class="text-4xl font-bold tracking-tight mb-4">Lutaml::Store</h1>
+    <p class="text-lg text-gray-500 dark:text-gray-400 mb-8">
+      Store-centric database-style API for
+      <a href="https://github.com/lutaml/lutaml-model" class="text-blue-600 dark:text-blue-400 underline">Lutaml::Model</a>
+      objects.
+    </p>
+
+    <h2 class="text-2xl font-semibold mt-8 mb-3">Quick start</h2>
+    <pre class="bg-gray-100 dark:bg-gray-900 rounded-lg p-4 overflow-x-auto text-sm"><code>require "lutaml/store"
+
+# From a cloud API
+repo = Lutaml::Store::Repository.new(
+  source: Lutaml::Store::Source.for(:rest,
+    base_url: "https://api.relaton.org", collection: "ietf"),
+  cache: Lutaml::Store::Source.for(:directory, path: "~/.cache/relaton/ietf"),
+)
+
+# From a local GCR-style package — identical read API
+repo = Lutaml::Store::Repository.new(
+  source: Lutaml::Store::Source.for(:directory, path: "~/gcr/relaton/ietf"),
+)
+
+repo.read("RFC 7231")
+repo.search(docid: "RFC 7231")
+repo.pull!(into: "~/gcr/relaton", collection: "ietf")</code></pre>
+
+    <h2 class="text-2xl font-semibold mt-8 mb-3">Features</h2>
+    <ul class="list-disc pl-6 space-y-1 text-gray-700 dark:text-gray-300">
+      <li><strong>Repository</strong> — one read API over any source (cloud, local, zip)</li>
+      <li><strong>Source</strong> — Directory, Zip, Https, Rest (read-only)</li>
+      <li><strong>DatabaseStore</strong> — CRUD with model registry, polymorphism, composites</li>
+      <li><strong>PackageStore</strong> — structured multi-model packages</li>
+      <li><strong>CacheStore</strong> — TTL-aware cache</li>
+      <li><strong>HttpCache</strong> — ETag/304 revalidation</li>
+      <li><strong>Mirror</strong> — pull any source into a package; pack to .zip</li>
+    </ul>
+
+    <h2 class="text-2xl font-semibold mt-8 mb-3">Installation</h2>
+    <pre class="bg-gray-100 dark:bg-gray-900 rounded-lg p-4 text-sm"><code>gem "lutaml-store"</code></pre>
+  </main>
+</Base>
