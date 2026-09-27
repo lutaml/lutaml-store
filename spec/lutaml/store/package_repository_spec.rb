@@ -166,7 +166,6 @@ RSpec.describe Lutaml::Store::Repository do
 end
 
 RSpec.describe "Lutaml::Store::Repository#search" do
-
   it "filters manifest entries by metadata fields" do
     skip "conformance fixtures not found at #{FIXTURE_ROOT}" unless File.directory?(FIXTURE_ROOT)
 
