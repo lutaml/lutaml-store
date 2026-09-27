@@ -3,11 +3,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vitepress dev",
-    "build": "vitepress build docs"
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
   },
-  "devDependencies": {
-    "vitepress": "^1.6.4",
-    "vue": "^3.5.13"
+  "dependencies": {
+    "@astrojs/vue": "^7.0.0",
+    "@tailwindcss/typography": "^0.5.19",
+    "@tailwindcss/vite": "^4.3.0",
+    "astro": "^7.3.0",
+    "tailwindcss": "^4.3.0",
+    "vue": "^3.5.35"
   }
 }

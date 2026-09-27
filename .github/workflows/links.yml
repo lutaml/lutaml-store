@@ -21,16 +21,18 @@ jobs:
     steps:
     - uses: actions/checkout@v6
 
-    - uses: ruby/setup-ruby@v1
+    - uses: actions/setup-node@v4
       with:
-        ruby-version: '3.4'
-        bundler-cache: true
-        working-directory: docs
+        node-version: 22
+        cache: npm
+        cache-dependency-path: docs/package-lock.json
+
+    - name: Install dependencies
+      run: npm ci
+      working-directory: docs
 
     - name: Build site
-      env:
-        JEKYLL_ENV: production
-      run: bundle exec jekyll build --trace
+      run: npm run build
       working-directory: docs
 
     - name: Restore lychee cache
@@ -42,12 +44,12 @@ jobs:
 
     - name: Check if site was built
       run: |
-        if [ ! -d "_site" ]; then
-          echo "Error: _site directory not created"
+        if [ ! -d "dist" ]; then
+          echo "Error: dist directory not created"
           exit 1
         fi
         echo "Site built successfully"
-        ls -la _site/
+        ls -la dist/
       working-directory: docs
 
     - name: Link Checker (Built Site)
@@ -58,10 +60,9 @@ jobs:
         args: >-
           --verbose
           --no-progress
-          --config lychee.toml
-          --root-dir "$(pwd)/_site"
+                    --root-dir "$(pwd)/dist"
           --scheme https,http
-          '_site/**/*.html'
+          'dist/**/*.html'
         fail: true
         output: link-check-results.md
         format: markdown

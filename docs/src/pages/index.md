@@ -1,3 +1,7 @@
+---
+layout: ../layouts/Docs.astro
+---
+
 # Lutaml::Store
 
 Store-centric database-style API for [Lutaml::Model](https://github.com/lutaml/lutaml-model) objects, with model registry, polymorphic support, composite relationships, and multiple storage backends.

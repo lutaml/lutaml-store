@@ -14,3 +14,8 @@ Gemfile.lock
 demo/Gemfile.lock
 demo/data/
 TODO*
+
+# Node (docs site)
+node_modules/
+docs/dist/
+docs/.astro/

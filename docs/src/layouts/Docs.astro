@@ -1,0 +1,41 @@
+---
+import Base from "./Base.astro";
+
+interface Props {
+  frontmatter?: { title?: string; description?: string };
+}
+
+const { frontmatter } = Astro.props;
+const path = Astro.url.pathname;
+const base = import.meta.env.BASE_URL;
+const rel = path.startsWith(base) ? path.slice(base.length) : path;
+
+const NAV = [
+  { text: "Introduction", link: "" },
+  { text: "Quick Start", link: "quick-start/" },
+  { text: "Architecture", link: "architecture/" },
+  { text: "Stores", link: "stores/" },
+  { text: "Formats", link: "formats/" },
+  { text: "Adapters", link: "adapters/" },
+  { text: "Sources", link: "sources/" },
+  { text: "Cloud Store Contract", link: "cloud-contract/" },
+  { text: "HTTP Caching", link: "http-cache/" },
+];
+
+const isActive = (link: string) => (link === "" ? rel === "/" || rel === "" : rel === link || rel === `/${link}`);
+---
+
+<Base title={frontmatter?.title ? `${frontmatter.title} — LutaML Store` : "LutaML Store"}>
+  <div class="mx-auto max-w-7xl px-6 py-10 lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-10">
+    <aside class="mb-8 lg:mb-0">
+      <nav class="flex flex-wrap gap-x-5 gap-y-2 text-sm lg:sticky lg:top-20 lg:flex-col lg:gap-1">
+        {NAV.map((item) => (
+          <a href={`${base}${item.link}`} class:list={["px-3 py-1.5 rounded-md font-medium", isActive(item.link) ? "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300" : "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"]}>{item.text}</a>
+        ))}
+      </nav>
+    </aside>
+    <article class="prose prose-lg dark:prose-invert max-w-3xl">
+      <slot />
+    </article>
+  </div>
+</Base>

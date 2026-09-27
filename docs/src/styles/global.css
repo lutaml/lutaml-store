@@ -1,0 +1,10 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+.light-only { display: block; }
+.dark-only { display: none; }
+
+@media (prefers-color-scheme: dark) {
+  .light-only { display: none; }
+  .dark-only { display: block; }
+}
