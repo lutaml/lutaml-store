@@ -32,6 +32,8 @@ jobs:
 
       - uses: actions/configure-pages@v5
         id: pages
+        with:
+          enablement: true
 
       - name: Install and build
         run: npm install && npm run build
