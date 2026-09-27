@@ -164,3 +164,34 @@ RSpec.describe Lutaml::Store::Repository do
     expect(local.keys).to eq(["k"])
   end
 end
+
+RSpec.describe "Lutaml::Store::Repository#search" do
+
+  it "filters manifest entries by metadata fields" do
+    skip "conformance fixtures not found at #{FIXTURE_ROOT}" unless File.directory?(FIXTURE_ROOT)
+
+    repo = Lutaml::Store::Repository.for_package(FIXTURE_ROOT)
+    hits = repo.search("docid" => "RFC 7231")
+    expect(hits.size).to eq(1)
+    expect(hits.first.key).to eq("RFC 7231")
+  end
+
+  it "returns an empty array when nothing matches" do
+    skip "conformance fixtures not found at #{FIXTURE_ROOT}" unless File.directory?(FIXTURE_ROOT)
+
+    repo = Lutaml::Store::Repository.for_package(FIXTURE_ROOT)
+    expect(repo.search("docid" => "RFC 9999")).to eq([])
+  end
+
+  it "matches case-insensitively on string metadata" do
+    skip "conformance fixtures not found at #{FIXTURE_ROOT}" unless File.directory?(FIXTURE_ROOT)
+
+    repo = Lutaml::Store::Repository.for_package(FIXTURE_ROOT)
+    expect(repo.search("docid" => "rfc 7231").size).to eq(1)
+  end
+
+  it "returns [] for an empty filter — an unfiltered search is keys" do
+    repo = Lutaml::Store::Repository.for_package(FIXTURE_ROOT)
+    expect(repo.search).to eq([])
+  end
+end

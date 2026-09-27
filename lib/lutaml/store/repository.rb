@@ -98,6 +98,26 @@ module Lutaml
         @source.manifest
       end
 
+      # Filters the collection's manifest entries by metadata key/values.
+      # The store is field-agnostic: it matches the literal metadata hash —
+      # the domain (relaton pubid, Glossarist concepts) narrows semantics.
+      #
+      #   repo.search(doctype: "rfc", stream: "IETF")
+      #   repo.search(docid: "RFC 7231")
+      #
+      # @param filter [Hash<String=>String>] ALL key/values must match
+      # @return [Array<Manifest::Entry>] matching entries (empty if none)
+      def search(**filter)
+        return [] if filter.empty?
+
+        manifest.entries.select do |entry|
+          filter.all? do |k, v|
+            mv = entry.metadata[k.to_s]
+            mv.is_a?(String) ? mv.casecmp?(v.to_s) : mv == v
+          end
+        end
+      end
+
       # Mirror the whole source into a local package (the cache layout).
       # Returns a Repository over the written package.
       def pull!(into:, collection: nil, force: false)
