@@ -342,7 +342,6 @@ RSpec.describe Lutaml::Store::HttpCache do
     let(:method) { "GET" }
 
     it "caches different responses for different vary headers" do
-      skip "NoMethodError escapes pending on Windows CI" if Gem.platforms.join.include?("mingw")
       pending "Vary-based caching requires multi-entry storage per URL key — not yet implemented"
       vary_response = {
         status_code: 200,
