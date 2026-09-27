@@ -1,3 +1,7 @@
+---
+layout: ../layouts/Docs.astro
+---
+
 # Cloud Store Contract
 
 The lutaml cloud store API contract — distilled from api.relaton.org and generalized. Any service implementing it is a lutaml cloud store.

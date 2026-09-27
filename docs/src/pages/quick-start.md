@@ -1,3 +1,7 @@
+---
+layout: ../layouts/Docs.astro
+---
+
 # Quick Start
 
 ## Installation

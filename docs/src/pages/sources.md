@@ -1,3 +1,7 @@
+---
+layout: ../layouts/Docs.astro
+---
+
 # Sources
 
 A **Source** is a read-only view over a LutaML data repository. It answers four questions:
