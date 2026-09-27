@@ -17,8 +17,64 @@ It offers a unified interface for storing and retrieving complex model
 hierarchies, batch file I/O with multiple serialization formats, HTTP-aware
 caching, and package-based persistence with ZIP and directory transports.
 
+It also provides **read-only Sources** for working with data repositories that
+live outside your process — GitHub Pages, any static host, a REST API, a local
+package directory, or a `.zip` distribution — through one facade that never
+guesses which layer answered.
+
+== Quick start: read a LutaML data repository
+
+The same read API whether the data lives in the cloud, a local package, or a
+downloaded `.zip` — backends are configured, never guessed:
+
+[source,ruby]
+----
+require "lutaml/store"
+
+# From a cloud API (api.relaton.org is the reference implementation)
+repo = Lutaml::Store::Repository.new(
+  source: Lutaml::Store::Source.for(:rest,
+    base_url: "https://api.relaton.org", collection: "ietf"),
+  cache: Lutaml::Store::Source.for(:directory, path: "~/.cache/relaton/ietf"),
+)
+
+# From a local GCR-style package — identical read API
+repo = Lutaml::Store::Repository.new(
+  source: Lutaml::Store::Source.for(:directory, path: "~/gcr/relaton/ietf"),
+)
+
+# From a downloaded .zip distribution — same API
+repo = Lutaml::Store::Repository.new(
+  source: Lutaml::Store::Source.for(:zip, path: "ietf.zip"),
+)
+
+# Read
+repo.read("RFC 7231")        # => bytes
+repo.exist?("RFC 7231")      # => true
+repo.keys                     # => ["RFC 7231", ...]
+repo.manifest                 # => Lutaml::Store::Manifest
+
+# Parse into your model — the model class is declared, never inferred
+repo.get("RFC 7231", MyModel)
+
+# Search by metadata fields
+repo.search(docid: "RFC 7231")
+
+# Pull the whole collection into a local GCR-style package
+repo.pull!(into: "~/gcr/relaton", collection: "ietf")
+
+# Offline mode: never touch the source, serve from the local package only
+offline = Lutaml::Store::Repository.new(source: repo.source, cache: repo.cache, mode: :offline)
+offline.read("RFC 7231")     # served from the cache, no network
+
+
+
 == Features
 
+* **Repository** — the uniform facade: one read API over any source (cloud, local, zip), explicit cache, online/offline modes
+* **Source** (read-only) — Directory, Zip, Https (ETag/304), Rest (the lutaml cloud store API); 404 = NotFoundError, transport = BackendError
+* **Manifest** — the enumeration SSOT: keys, sha256 digests, opaque shard metadata
+* **Mirror** — pull any source into a GCR-style package (incremental, digest-verified); pack to a distributable .zip
 * **DatabaseStore** — high-level CRUD with model registry, polymorphism, composites
 * **PackageStore** — structured multi-model packages with ZIP and directory transport
 * **BasicStore** — low-level key-value store with optional cache, events, monitoring
