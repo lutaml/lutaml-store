@@ -92,7 +92,7 @@ RSpec.describe Lutaml::Store::Format::Xml do
     end
 
     it "round-trips through ZIP transport" do
-      skip "rubyzip holds the file lock on Windows CI (Errno::EACCES)" if Gem.platforms.any? { |p| p.to_s.include?("mingw") }
+      skip "rubyzip EACCES on Windows CI" if Gem.platforms.join.include?("mingw")
 
       Dir.mktmpdir do |tmpdir|
         store = Lutaml::Store::PackageStore.new(definition)
