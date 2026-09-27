@@ -15,7 +15,7 @@ RSpec.describe "Lutaml::Store::Adapter::SQLite scale" do
   let(:db_path) { File.join(Dir.mktmpdir, "scale.db") }
   let(:adapter) { Lutaml::Store::Adapter.resolve(:sqlite, path: db_path) }
 
-  after {  }
+  after {}
 
   context "bulk write and read at 10_000 keys" do
     let(:scale) { 10_000 }
