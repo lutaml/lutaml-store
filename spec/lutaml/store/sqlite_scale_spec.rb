@@ -3,16 +3,15 @@
 require "spec_helper"
 require "tmpdir"
 
-begin
-  require "sqlite3"
-rescue LoadError
-  nil
-end
-
 # Pin the SQLite adapter's bulk behaviour at the scale the Relaton cache
 # index will hit (lutaml/lutaml-store#11). Skipped if the sqlite3 gem is
 # not installed — the FileSystem adapter is the fallback.
-RSpec.describe "Lutaml::Store::Adapter::SQLite scale", if: defined?(SQLite3::Database) do
+# Does NOT require "sqlite3" at the top level: that would break the
+# autoload spec (which expects sqlite3 NOT to be loaded by BasicStore).
+RSpec.describe "Lutaml::Store::Adapter::SQLite scale" do
+  before(:all) do
+    require "sqlite3"
+  end
   let(:db_path) { File.join(Dir.mktmpdir, "scale.db") }
   let(:adapter) { Lutaml::Store::Adapter.resolve(:sqlite, path: db_path) }
 
