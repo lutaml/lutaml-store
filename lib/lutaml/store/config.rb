@@ -12,7 +12,8 @@ module Lutaml
 
       def initialize(adapter_type: :memory, adapter_options: {},
                      cache: {}, monitoring: {}, events: {},
-                     compression: {}, serialization: {}, **)
+                     compression: {}, serialization: {}, adapter: nil, **)
+        adapter_type = adapter if adapter.is_a?(Hash)
         @adapter_type = normalize_adapter_type(adapter_type)
         @adapter_options = inline_adapter_options(adapter_type).merge(symbolize_keys(adapter_options))
 
