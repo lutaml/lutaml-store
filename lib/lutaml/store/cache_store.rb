@@ -1,11 +1,16 @@
 # frozen_string_literal: true
 
 require "json"
+require "monitor"
 require "time"
 
 module Lutaml
   module Store
     # TTL-aware cache store with LRU eviction. Wraps a storage adapter directly.
+    #
+    # All public operations run under one re-entrant lock, so the LRU and
+    # cleanup bookkeeping is safe across threads. Across processes only the
+    # adapter's own guarantees apply.
     class CacheStore
       class CacheEntry
         attr_reader :value, :created_at, :ttl, :metadata
@@ -58,66 +63,75 @@ module Lutaml
         @cleanup_interval = config[:cleanup_interval] || 300
         @last_cleanup = Time.now
         @access_times = {}
+        @lock = ::Monitor.new
       end
 
       def get(key)
-        cleanup_expired if should_cleanup?
+        @lock.synchronize do
+          cleanup_if_due
 
-        entry_data = @adapter.get(key)
-        return nil unless entry_data
+          entry_data = @adapter.get(key)
+          next nil unless entry_data
 
-        begin
-          entry = deserialize_entry(entry_data)
+          begin
+            entry = deserialize_entry(entry_data)
 
-          if entry.expired?
+            if entry.expired?
+              delete(key)
+              next nil
+            end
+
+            @access_times[key] = Time.now
+            entry.value
+          rescue StandardError
             delete(key)
-            return nil
+            nil
           end
-
-          @access_times[key] = Time.now
-          entry.value
-        rescue StandardError
-          delete(key)
-          nil
         end
       end
 
       def set(key, value, ttl: :default, metadata: {})
-        cleanup_expired if should_cleanup?
-        evict_if_needed
+        @lock.synchronize do
+          cleanup_if_due
+          evict_if_needed
 
-        effective_ttl = ttl == :default ? @default_ttl : ttl
-        entry = CacheEntry.new(value, ttl: effective_ttl, metadata: metadata)
+          effective_ttl = ttl == :default ? @default_ttl : ttl
+          entry = CacheEntry.new(value, ttl: effective_ttl, metadata: metadata)
 
-        serialized_entry = serialize_entry(entry)
-        @adapter.set(key, serialized_entry)
+          serialized_entry = serialize_entry(entry)
+          @adapter.set(key, serialized_entry)
 
-        @access_times[key] = Time.now
-        value
+          @access_times[key] = Time.now
+          value
+        end
       end
 
       def delete(key)
-        value = nil
-        entry_data = @adapter.get(key)
-        if entry_data
-          begin
-            entry = deserialize_entry(entry_data)
-            value = entry.value unless entry.expired?
-          rescue StandardError
-            # If we can't deserialize, treat as nil
+        @lock.synchronize do
+          value = nil
+          entry_data = @adapter.get(key)
+          if entry_data
+            begin
+              entry = deserialize_entry(entry_data)
+              value = entry.value unless entry.expired?
+            rescue StandardError
+              # If we can't deserialize, treat as nil
+            end
           end
+
+          @access_times.delete(key)
+
+          deleted = @adapter.delete(key)
+
+          deleted ? value : nil
         end
-
-        @access_times.delete(key)
-
-        deleted = @adapter.delete(key)
-
-        deleted ? value : nil
       end
 
       def clear
-        @access_times.clear
-        @adapter.clear
+        @lock.synchronize do
+          @access_times.clear
+          @adapter.clear
+        end
       end
 
       def exists?(key)
@@ -135,12 +149,13 @@ module Lutaml
       end
 
       def keys
-        cleanup_expired if should_cleanup?
-        @adapter.keys.select { |key| exists?(key) }
+        @lock.synchronize do
+          cleanup_if_due
+          @adapter.keys.select { |key| exists?(key) }
+        end
       end
 
       def size
-        cleanup_expired if should_cleanup?
         keys.size
       end
 
@@ -169,22 +184,7 @@ module Lutaml
       end
 
       def cleanup_expired
-        expired_keys = []
-
-        @adapter.each_key do |key|
-          entry_data = @adapter.get(key)
-          next unless entry_data
-
-          entry = deserialize_entry(entry_data)
-          expired_keys << key if entry.expired?
-        rescue StandardError
-          expired_keys << key
-        end
-
-        expired_keys.each { |key| delete(key) }
-        @last_cleanup = Time.now
-
-        expired_keys.size
+        @lock.synchronize { cleanup_expired_entries }
       end
 
       def cache_info
@@ -203,23 +203,25 @@ module Lutaml
       end
 
       def touch(key, ttl: nil)
-        entry_data = @adapter.get(key)
-        return false unless entry_data
+        @lock.synchronize do
+          entry_data = @adapter.get(key)
+          next false unless entry_data
 
-        begin
-          entry = deserialize_entry(entry_data)
-          return false if entry.expired?
+          begin
+            entry = deserialize_entry(entry_data)
+            next false if entry.expired?
 
-          new_ttl = ttl || entry.ttl
-          new_entry = CacheEntry.new(entry.value, ttl: new_ttl, metadata: entry.metadata)
+            new_ttl = ttl || entry.ttl
+            new_entry = CacheEntry.new(entry.value, ttl: new_ttl, metadata: entry.metadata)
 
-          serialized_entry = serialize_entry(new_entry)
-          @adapter.set(key, serialized_entry)
+            serialized_entry = serialize_entry(new_entry)
+            @adapter.set(key, serialized_entry)
 
-          @access_times[key] = Time.now
-          true
-        rescue StandardError
-          false
+            @access_times[key] = Time.now
+            true
+          rescue StandardError
+            false
+          end
         end
       end
 
@@ -263,14 +265,45 @@ module Lutaml
         Time.now - @last_cleanup > @cleanup_interval
       end
 
+      # Caller holds @lock.
+      def cleanup_if_due
+        cleanup_expired_entries if should_cleanup?
+      end
+
+      # Caller holds @lock. @last_cleanup is set first, so a nested call
+      # (through #delete) does not start a second scan.
+      def cleanup_expired_entries
+        @last_cleanup = Time.now
+        expired_keys = []
+
+        @adapter.each_key do |key|
+          entry_data = @adapter.get(key)
+          next unless entry_data
+
+          entry = deserialize_entry(entry_data)
+          expired_keys << key if entry.expired?
+        rescue StandardError
+          expired_keys << key
+        end
+
+        expired_keys.each { |key| delete(key) }
+
+        expired_keys.size
+      end
+
+      # Caller holds @lock. Keys this process never touched count as the
+      # least recently used.
       def evict_if_needed
         return unless @max_size
-        return if size < @max_size
 
-        keys_by_access = @access_times.sort_by { |_, time| time }.map(&:first)
-        keys_to_evict = keys_by_access.first(size - @max_size + 1)
+        stored_keys = @adapter.keys
+        overflow = stored_keys.size - @max_size + 1
+        return unless overflow.positive?
 
-        keys_to_evict.each { |key| delete(key) }
+        untouched = stored_keys.reject { |key| @access_times.key?(key) }
+        by_access = @access_times.sort_by { |_, time| time }.map(&:first)
+
+        (untouched + by_access).first(overflow).each { |key| delete(key) }
       end
     end
   end

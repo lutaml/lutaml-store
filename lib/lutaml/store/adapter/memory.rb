@@ -1,15 +1,18 @@
 # frozen_string_literal: true
 
+require "monitor"
+
 module Lutaml
   module Store
     module Adapter
       # In-memory key-value adapter optimized for read-heavy workloads.
       # Writes are synchronized; reads are lock-free using snapshot copies.
+      # The write lock is a re-entrant Monitor so #update can call #set.
       class Memory < Base
         def initialize(config = {})
           super
           @data = {}
-          @write_mutex = Mutex.new
+          @write_mutex = ::Monitor.new
           @read_snapshot = {}.freeze
           @snapshot_stale = true
           @ttl_enabled = @config.fetch(:ttl_enabled, false)
@@ -70,6 +73,18 @@ module Lutaml
             end
           end
           value
+        end
+
+        # Atomic read-modify-write across threads. Keeps the key's expiry.
+        def update(key)
+          @write_mutex.synchronize do
+            old_value = get(key)
+            expires_at = @ttl_data&.[](key)
+            new_value = yield(old_value)
+            set(key, new_value)
+            @ttl_data[key] = expires_at if expires_at
+            new_value
+          end
         end
 
         def delete(key)

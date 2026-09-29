@@ -57,6 +57,17 @@ module Lutaml
         end
       end
 
+      # Atomic read-modify-write through the adapter. The block gets the
+      # adapter's current value, not the cached one.
+      def update(key, &block)
+        with_monitoring(:set) do
+          value = @adapter.update(key, &block)
+          @cache&.set(key, value)
+          emit_event(:set, key: key, value: value)
+          value
+        end
+      end
+
       def delete(key)
         with_monitoring(:delete) do
           result = @adapter.delete(key)

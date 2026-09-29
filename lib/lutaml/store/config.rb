@@ -14,7 +14,7 @@ module Lutaml
                      cache: {}, monitoring: {}, events: {},
                      compression: {}, serialization: {}, **)
         @adapter_type = normalize_adapter_type(adapter_type)
-        @adapter_options = symbolize_keys(adapter_options)
+        @adapter_options = inline_adapter_options(adapter_type).merge(symbolize_keys(adapter_options))
 
         cache_config = symbolize_keys(cache)
         @cache_enabled = cache_config.fetch(:enabled, true)
@@ -132,6 +132,18 @@ module Lutaml
         else
           :memory
         end
+      end
+
+      # Options given inline with the type, as in
+      # `adapter: { type: :filesystem, path: "./data" }` or
+      # `adapter: { type: :sqlite, options: { path: "a.db" } }`.
+      def inline_adapter_options(adapter_type)
+        return {} unless adapter_type.is_a?(Hash)
+
+        inline = symbolize_keys(adapter_type)
+        nested = inline.delete(:options) || {}
+        inline.delete(:type)
+        inline.merge(nested)
       end
 
       def validate_adapter_config
