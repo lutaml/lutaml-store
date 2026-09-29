@@ -18,6 +18,7 @@ module Lutaml
           @ttl_enabled = @config.fetch(:ttl_enabled, false)
           @ttl_data = @ttl_enabled ? {} : nil
           @default_ttl = @config[:default_ttl] || 3600
+          @max_entries = @config[:max_entries]
         end
 
         # ── Read operations (lock-free via snapshot) ──
@@ -64,6 +65,7 @@ module Lutaml
 
         def set(key, value, metadata = {})
           @write_mutex.synchronize do
+            evict_oldest_if_needed(key)
             @data[key] = value
             invalidate_snapshot
 
@@ -118,6 +120,7 @@ module Lutaml
         def bulk_set(key_value_pairs, ttl: nil)
           @write_mutex.synchronize do
             key_value_pairs.each do |key, value|
+              evict_oldest_if_needed(key)
               @data[key] = value
 
               if @ttl_enabled
@@ -255,6 +258,7 @@ module Lutaml
           snap = snapshot
           super.merge(
             size: snap.size,
+            max_entries: @max_entries,
             ttl_enabled: @ttl_enabled,
             expired_keys: @ttl_enabled ? count_expired_keys : 0
           )
@@ -277,6 +281,19 @@ module Lutaml
 
         def invalidate_snapshot
           @snapshot_stale = true
+        end
+
+        # Capacity bound (max_entries): evict the oldest-INSERTED entry to
+        # make room. Insertion order, not access order — refreshing on read
+        # would cost the lock-free snapshot reads. Updating an existing key
+        # never evicts.
+        def evict_oldest_if_needed(incoming_key)
+          return if @max_entries.nil? || @data.key?(incoming_key) ||
+            @data.size < @max_entries
+
+          oldest = @data.each_key.first
+          @data.delete(oldest)
+          @ttl_data&.delete(oldest)
         end
 
         def cleanup_expired_if_needed
