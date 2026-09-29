@@ -49,6 +49,12 @@ All inherit from `Format::Base`. Six formats: `Yaml`, `Yamls`, `Json`, `Jsonl`, 
 
 All inherit from `Adapter::Base`. Three backends: `Memory`, `FileSystem`, `SQLite`. Registered in `Adapter` module and resolved via `Adapter.resolve(:type, options)`. New adapters can be added with `Adapter.register(:custom, CustomClass)` without modifying existing code (OCP).
 
+`Base#each_key` defaults to `keys.each`; `Base#update(key) { |old| new }` defaults to get + set inside `transaction`. Memory, FileSystem and Sqlite override `update` to be atomic. `FileSystem` percent-encodes file names (digest + key in `.meta` for long names), writes non-String values as JSON (`format: "json"` in `.meta`), and locks `<root>/.lock` (`with_lock(:ex/:sh)`, re-entrant per thread; a shared lock cannot be upgraded).
+
+Inside `Lutaml::Store`, a bare `Monitor` resolves to `Lutaml::Store::Monitor` (the stats collector) — write `::Monitor` for Ruby's re-entrant lock.
+
+Specs that load `sqlite3` must sort after `autoload_spec.rb` (see `sqlite_scale_spec.rb`). Run specs with a UTF-8 locale (`LANG=C.UTF-8`); the anti-pattern guard fails under US-ASCII.
+
 ### PackageStore and transports
 
 `PackageStore` provides structured multi-model persistence. `PackageDefinition` declares which models, assets, and metadata the package contains. Transports (`DirectoryTransport`, `ZipTransport`) handle reading/writing to disk. Format handlers determine serialization per model entry.

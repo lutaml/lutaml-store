@@ -228,7 +228,21 @@ with optional caching, monitoring, and event emission.
 === Storage adapters
 
 All adapters inherit from `Adapter::Base` and provide `get`, `set`, `delete`,
-`exists?`, `keys`, `all`, `clear`, `size`, `each_key`, and bulk operations.
+`exists?`, `keys`, `all`, `clear`, `size`, `each_key`, `update`, and bulk
+operations. `each_key` defaults to `keys.each`, so a custom adapter only needs
+`keys`.
+
+`update(key) { |old| new }` is a read-modify-write: the block gets the current
+value (`nil` when the key is missing) and its result is stored. It is atomic
+across threads for Memory, and across threads and processes for FileSystem and
+SQLite. `BasicStore#update` calls it and refreshes the read cache.
+
+[source,ruby]
+----
+store = Lutaml::Store::BasicStore.new(adapter_type: :filesystem,
+                                      adapter_options: { path: "./data" })
+store.update("counter") { |n| (n.to_i + 1).to_s }
+----
 
 [cols="1,1,3"]
 |===
@@ -641,6 +655,21 @@ store = Lutaml::Store.new(
 Persistent file-based storage with SHA-256 integrity checks. Files organized
 by key in subdirectories.
 
+* *File names.* Every byte outside `[A-Za-z0-9._-]` is percent-encoded, so
+  `ISO/19115` and `ISO:19115` get different files and `keys` returns the
+  original keys. A leading `.` is encoded too, so no file is hidden or outside
+  the root. A name longer than 200 bytes becomes `~` plus the SHA-256 of the
+  key; the `.meta` file beside it keeps the key. Files written by 0.3.0 (with
+  `_` in place of unsafe characters) are still read, and move to the new name
+  on the next write of that key.
+* *Values.* A `String` is written as is. Any other value (for example the
+  Hash that `DatabaseStore` saves) is written as JSON and read back as JSON.
+* *Locks.* Writes hold an exclusive `flock` on `<path>/.lock` and reads hold a
+  shared one. Data and `.meta` files are written to a unique temp file and
+  renamed into place, so readers never see a partial write.
+* *Case-insensitive file systems* (the macOS default) can still merge keys that
+  differ only in letter case.
+
 === SQLite
 
 [source,ruby]
@@ -681,8 +710,20 @@ Error hierarchy:
 
 == Thread safety
 
-All adapters use mutex-based synchronization. Safe for concurrent use across
-threads.
+* `Adapter::Memory`: writes are synchronized with a Monitor; reads use a
+  frozen snapshot.
+* `Adapter::FileSystem`: safe across threads and processes that share one
+  directory (see the FileSystem section above). `transaction { ... }` holds the exclusive
+  lock for the whole block.
+* `Adapter::Sqlite`: SQLite locking with a busy timeout; `update` uses
+  `BEGIN IMMEDIATE`.
+* `CacheStore`: all operations run under one lock per instance. The TTL and
+  LRU bookkeeping is per process.
+* `BasicStore`: the optional read cache is per process. Disable it
+  (`cache: { enabled: false }`) when other processes write the same store.
+
+A `get` followed by a `set` is never atomic. Use `update` for a
+read-modify-write.
 
 == Development
 

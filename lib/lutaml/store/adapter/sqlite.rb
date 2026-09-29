@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "json"
+require "monitor"
 
 module Lutaml
   module Store
@@ -19,6 +20,7 @@ module Lutaml
           @db_path = @config[:path] || raise(ConfigurationError, "SQLite adapter requires :path config")
           @table_name = @config[:table_name] || DEFAULT_TABLE_NAME
           @timeout = @config[:timeout] || 30_000
+          @update_lock = ::Monitor.new
 
           setup_database
         end
@@ -178,13 +180,36 @@ module Lutaml
           results
         end
 
+        # Atomic read-modify-write. BEGIN IMMEDIATE takes the database write
+        # lock before the read, so no other process can write in between;
+        # the Monitor keeps threads that share this connection apart.
+        def update(key, &block)
+          @update_lock.synchronize do
+            if @db.transaction_active?
+              update_in_transaction(key, &block)
+            else
+              @db.transaction(:immediate) { update_in_transaction(key, &block) }
+            end
+          end
+        rescue SQLite3::Exception => e
+          raise BackendError, "Update failed: #{e.message}"
+        end
+
+        # Holds the update lock too, so a concurrent #update from another
+        # thread cannot run inside this transaction.
         def transaction(&block)
-          @db.transaction(&block)
+          @update_lock.synchronize { @db.transaction(&block) }
         rescue SQLite3::Exception => e
           raise BackendError, "Transaction failed: #{e.message}"
         end
 
         private
+
+        def update_in_transaction(key)
+          new_value = yield(get(key))
+          set(key, new_value)
+          new_value
+        end
 
         def setup_database
           @db = SQLite3::Database.new(@db_path)

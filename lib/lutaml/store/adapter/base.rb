@@ -31,7 +31,9 @@ module Lutaml
         end
 
         def each_key(&block)
-          raise NotImplementedError
+          return enum_for(:each_key) unless block
+
+          keys.each(&block)
         end
 
         def all
@@ -86,6 +88,17 @@ module Lutaml
         # Execute a block atomically. No-op for adapters without transaction support.
         def transaction
           yield
+        end
+
+        # Read-modify-write: yields the current value (nil when missing) and
+        # stores the block's result. Atomic only where the adapter's
+        # #transaction is; Memory, FileSystem and Sqlite override this.
+        def update(key)
+          transaction do
+            new_value = yield(get(key))
+            set(key, new_value)
+            new_value
+          end
         end
 
         def stats
