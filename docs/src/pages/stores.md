@@ -76,6 +76,28 @@ cache.fetch("key") { expensive_call }     # block runs only on miss
 
 Entries past their TTL are evicted lazily on access; when `max_size` is exceeded the least-recently-used entries are evicted first.
 
+### TTL guarantees (pinned)
+
+The TTL semantics are pinned by specs and safe to build expiry policy on:
+
+- **Persistence** — entries serialize `created_at` as ISO-8601 with
+  microsecond precision, so a FileSystem (or SQLite) cache reopened in a new
+  process keeps every entry's original clock; expiry survives restarts.
+  The memory adapter keeps no state across processes by nature.
+- **Clock** — wall clock, not monotonic. This is the deliberate trade:
+  wall-clock timestamps survive restarts, but a system clock jump changes
+  apparent freshness (a backward jump un-expires nothing an entry's absolute
+  `created_at + ttl` already expired). Consumers needing jump-immunity
+  re-derive freshness from the source.
+- **Expired reads** — `get` on an expired entry returns `nil` **and deletes
+  the entry**: the key disappears from `keys`/`size`/`exists?`.
+- **Sweep** — expiry is lazy-on-read plus an opportunistic
+  `cleanup_expired` (interval `cleanup_interval`, default 300 s) invoked
+  inside mutating reads. There is **no background reaper**; a consumer like
+  the relaton shard cache needs none.
+- **TTL values** — `ttl: nil` (and no `default_ttl`) never expires;
+  `ttl: 0` is immediately expired.
+
 ## PackageStore — multi-model packages
 
 ```ruby

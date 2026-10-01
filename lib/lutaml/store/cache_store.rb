@@ -36,10 +36,12 @@ module Lutaml
 
         def to_h
           {
+            # sub-second precision: a second-truncated created_at shortens
+            # every restored TTL by up to a second (matters at small TTLs)
             value: @value,
-            created_at: @created_at.iso8601,
+            created_at: @created_at.iso8601(6),
             ttl: @ttl,
-            expires_at: expires_at&.iso8601,
+            expires_at: expires_at&.iso8601(6),
             metadata: @metadata
           }
         end
