@@ -19,6 +19,9 @@ module Lutaml
           @ttl_data = @ttl_enabled ? {} : nil
           @default_ttl = @config[:default_ttl] || 3600
           @max_entries = @config[:max_entries]
+          # Earliest live expiry; TTL cleanup skips its scan while now
+          # is before this, so N reads don't cost N full-table scans
+          @next_expiry = nil
         end
 
         # ── Read operations (lock-free via snapshot) ──
@@ -71,7 +74,11 @@ module Lutaml
 
             if @ttl_enabled
               ttl_value = metadata[:ttl] || @default_ttl
-              @ttl_data[key] = Time.now + ttl_value if ttl_value
+              if ttl_value
+                expires_at = Time.now + ttl_value
+                @ttl_data[key] = expires_at
+                track_expiry(expires_at)
+              end
             end
           end
           value
@@ -104,6 +111,7 @@ module Lutaml
             count = @data.size
             @data.clear
             @ttl_data&.clear
+            @next_expiry = nil
             invalidate_snapshot
             count
           end
@@ -113,6 +121,7 @@ module Lutaml
           @write_mutex.synchronize do
             @data.clear
             @ttl_data&.clear
+            @next_expiry = nil
             invalidate_snapshot
           end
         end
@@ -123,10 +132,14 @@ module Lutaml
               evict_oldest_if_needed(key)
               @data[key] = value
 
-              if @ttl_enabled
-                ttl_value = ttl || @default_ttl
-                @ttl_data[key] = Time.now + ttl_value if ttl_value
-              end
+              next unless @ttl_enabled
+
+              ttl_value = ttl || @default_ttl
+              next unless ttl_value
+
+              expires_at = Time.now + ttl_value
+              @ttl_data[key] = expires_at
+              track_expiry(expires_at)
             end
             invalidate_snapshot
           end
@@ -159,6 +172,7 @@ module Lutaml
               @data.delete(key)
               @ttl_data.delete(key)
             end
+            recompute_next_expiry unless expired_keys.empty?
             invalidate_snapshot unless expired_keys.empty?
             expired_keys.size
           end
@@ -171,7 +185,9 @@ module Lutaml
             return false unless @data.key?(key)
 
             if ttl
-              @ttl_data[key] = Time.now + ttl
+              expires_at = Time.now + ttl
+              @ttl_data[key] = expires_at
+              track_expiry(expires_at)
             else
               @ttl_data.delete(key)
             end
@@ -283,13 +299,22 @@ module Lutaml
           @snapshot_stale = true
         end
 
+        def track_expiry(expires_at)
+          @next_expiry = expires_at if @next_expiry.nil? || expires_at < @next_expiry
+        end
+
+        # Full-table scan; recomputes the watermark afterwards
+        def recompute_next_expiry
+          @next_expiry = @ttl_data.values.min
+        end
+
         # Capacity bound (max_entries): evict the oldest-INSERTED entry to
         # make room. Insertion order, not access order — refreshing on read
         # would cost the lock-free snapshot reads. Updating an existing key
         # never evicts.
         def evict_oldest_if_needed(incoming_key)
           return if @max_entries.nil? || @data.key?(incoming_key) ||
-            @data.size < @max_entries
+                    @data.size < @max_entries
 
           oldest = @data.each_key.first
           @data.delete(oldest)
@@ -298,9 +323,8 @@ module Lutaml
 
         def cleanup_expired_if_needed
           return unless @ttl_enabled
-
-          now = Time.now
-          return unless @ttl_data.any? { |_k, expiry| now > expiry }
+          return if @ttl_data.empty?
+          return if @next_expiry && Time.now < @next_expiry
 
           cleanup_expired
         end

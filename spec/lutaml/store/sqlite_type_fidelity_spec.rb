@@ -1,0 +1,77 @@
+# frozen_string_literal: true
+
+require "spec_helper"
+require "tmpdir"
+
+RSpec.describe Lutaml::Store::Adapter::Sqlite do
+  subject(:adapter) { described_class.new(path: db_path) }
+
+  let(:db_path) { File.join(tmpdir, "store.db") }
+
+  around do |example|
+    Dir.mktmpdir do |dir|
+      @tmpdir = dir
+      example.run
+    end
+  end
+
+  let(:tmpdir) { @tmpdir }
+
+  describe "#get and #all" do
+    it "returns the same decoded value for get and all" do
+      adapter.set("obj", { "a" => 1 })
+
+      expect(adapter.get("obj")).to eq({ "a" => 1 })
+      expect(adapter.all["obj"]).to eq({ "a" => 1 })
+    end
+
+    it "preserves plain strings that do not look like JSON" do
+      adapter.set("str", "plain text")
+
+      expect(adapter.get("str")).to eq "plain text"
+      expect(adapter.all["str"]).to eq "plain text"
+    end
+
+    it "preserves strings that look like JSON as strings" do
+      adapter.set("jsonish", '{"x": 5}')
+
+      expect(adapter.get("jsonish")).to eq '{"x": 5}'
+      expect(adapter.all["jsonish"]).to eq '{"x": 5}'
+    end
+
+    it "preserves the string/object distinction across reopen" do
+      adapter.set("keep_string", '{"looks": "like json"}')
+      adapter.set("keep_obj", { "real" => "object" })
+      adapter.close
+
+      reopened = described_class.new(path: db_path)
+      expect(reopened.get("keep_string")).to eq '{"looks": "like json"}'
+      expect(reopened.get("keep_obj")).to eq({ "real" => "object" })
+    end
+  end
+
+  describe "legacy database migration" do
+    it "adds the format column to databases created before it existed" do
+      # Simulate a pre-3.0.26 database: old schema, JSON-encoded rows
+      legacy_schema = <<~SQL
+        CREATE TABLE lutaml_store (
+          key TEXT PRIMARY KEY,
+          value BLOB NOT NULL,
+          updated_at REAL NOT NULL DEFAULT (julianday('now'))
+        )
+      SQL
+      db = SQLite3::Database.new(db_path)
+      db.execute(legacy_schema)
+      db.execute("INSERT INTO lutaml_store (key, value) VALUES ('obj', '{\"a\":1}')")
+      db.execute("INSERT INTO lutaml_store (key, value) VALUES ('str', 'plain text')")
+      db.close
+
+      migrated = described_class.new(path: db_path)
+
+      # Legacy rows carry no format marker: values that parse as JSON
+      # decode as objects, everything else stays a string
+      expect(migrated.get("obj")).to eq({ "a" => 1 })
+      expect(migrated.get("str")).to eq "plain text"
+    end
+  end
+end
