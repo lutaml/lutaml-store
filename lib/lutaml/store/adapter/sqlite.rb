@@ -26,26 +26,26 @@ module Lutaml
         end
 
         # ── Key-value operations ──
+        #
+        # Non-string values are serialized as JSON and marked in the
+        # is_json column; strings are stored verbatim and returned
+        # verbatim. Without the marker, a stored string that happens to
+        # look like JSON (e.g. '{"x": 5}') decodes as an object.
 
         def get(key)
-          result = nil
-          execute_query_raw("SELECT value FROM #{@table_name} WHERE key = ?", [key]) do |row|
-            value = row[0]
-            begin
-              result = JSON.parse(value)
-            rescue JSON::ParserError
-              result = value
-            end
-          end
-          result
+          row = query_row("SELECT value, is_json FROM #{@table_name} WHERE key = ?", [key])
+          return nil unless row
+
+          decode_value(row[0], row[1])
         end
 
         def set(key, value)
-          serialized_value = value.is_a?(String) ? value : JSON.generate(value)
+          is_string = value.is_a?(String)
+          serialized_value = is_string ? value : JSON.generate(value)
 
           execute_statement(
-            "INSERT OR REPLACE INTO #{@table_name} (key, value, updated_at) VALUES (?, ?, ?)",
-            [key, serialized_value, Time.now.to_f]
+            "INSERT OR REPLACE INTO #{@table_name} (key, value, is_json, updated_at) VALUES (?, ?, ?, ?)",
+            [key, serialized_value, is_string ? 0 : 1, Time.now.to_f]
           )
           value
         end
@@ -67,8 +67,8 @@ module Lutaml
 
         def all
           result = {}
-          execute_query_raw("SELECT key, value FROM #{@table_name}") do |row|
-            result[row[0]] = row[1]
+          execute_query_raw("SELECT key, value, is_json FROM #{@table_name}") do |row|
+            result[row[0]] = decode_value(row[1], row[2])
           end
           result
         end
@@ -142,9 +142,7 @@ module Lutaml
           sql, params = build_select_sql(query)
           results = []
           execute_query_raw(sql, params) do |row|
-            key = row[0]
-            value = parse_json_value(row[1])
-            results << [key, value]
+            results << [row[0], decode_value(row[1], row[2])]
           end
           results
         end
@@ -165,7 +163,7 @@ module Lutaml
             params << after
           end
 
-          sql = "SELECT key, value FROM #{@table_name}"
+          sql = "SELECT key, value, is_json FROM #{@table_name}"
           sql += " WHERE #{conditions.join(" AND ")}" unless conditions.empty?
           sql += " ORDER BY key ASC"
           sql += " LIMIT ?"
@@ -173,9 +171,7 @@ module Lutaml
 
           results = []
           execute_query_raw(sql, params) do |row|
-            key = row[0]
-            value = parse_json_value(row[1])
-            results << [key, value]
+            results << [row[0].to_s, decode_value(row[1], row[2])]
           end
           results
         end
@@ -221,6 +217,7 @@ module Lutaml
           @db.execute("PRAGMA temp_store=memory")
 
           create_table_if_not_exists
+          migrate_schema
           create_indexes
         end
 
@@ -229,9 +226,22 @@ module Lutaml
             CREATE TABLE IF NOT EXISTS #{@table_name} (
               key TEXT PRIMARY KEY,
               value BLOB NOT NULL,
+              is_json INTEGER NOT NULL DEFAULT 1,
               updated_at REAL NOT NULL DEFAULT (julianday('now'))
             )
           SQL
+        end
+
+        # Databases created before the is_json column existed predate
+        # format tracking: legacy rows (default is_json = 1) decode as
+        # JSON when they parse, staying a string otherwise
+        def migrate_schema
+          columns = @db.execute("PRAGMA table_info(#{@table_name})").map do |row|
+            row[1]
+          end
+          return if columns.include?("is_json")
+
+          @db.execute("ALTER TABLE #{@table_name} ADD COLUMN is_json INTEGER NOT NULL DEFAULT 1")
         end
 
         def create_indexes
@@ -243,7 +253,7 @@ module Lutaml
         def build_select_sql(query)
           conditions, params = build_conditions(query)
 
-          sql = "SELECT key, value FROM #{@table_name}"
+          sql = "SELECT key, value, is_json FROM #{@table_name}"
           sql += " WHERE #{conditions.join(" AND ")}" unless conditions.empty?
           sql += build_order_clause(query.orders)
           sql += build_limit_offset(query.limit_value, query.offset_value, params)
@@ -352,13 +362,26 @@ module Lutaml
           "%#{pattern}%"
         end
 
-        def parse_json_value(raw)
+        # ── Raw query helpers ──
+
+        def query_row(sql, params = [])
+          execute_query_raw(sql, params) do |row|
+            return row
+          end
+          nil
+        end
+
+        # is_json marks rows written from non-string values (the
+        # default, including every pre-format-tracking row): they
+        # decode as JSON when they parse. Rows written from strings
+        # come back verbatim.
+        def decode_value(raw, is_json)
+          return raw unless is_json.to_i == 1
+
           JSON.parse(raw)
         rescue JSON::ParserError
           raw
         end
-
-        # ── Raw query helpers ──
 
         def execute_query_raw(sql, params = [])
           @db.execute(sql, params) do |row|

@@ -115,11 +115,32 @@ module Lutaml
           end
         end
 
+        # Reads every entry under one shared lock instead of taking a
+        # fresh flock per key; corrupt entries are repaired after the
+        # shared lock releases, preserving #get's contract for them
         def all
-          keys.each_with_object({}) do |key, result|
-            value = get(key)
-            result[key] = value unless value.nil?
+          result = {}
+          corrupt = []
+
+          with_lock(:sh) do
+            data_files.each do |file_path|
+              key = key_from_path(file_path)
+              next unless key
+
+              status, value = read_verified_at(file_path, key)
+              if status == :corrupt
+                corrupt << [key, value]
+              else
+                result[key] = value
+              end
+            end
           end
+
+          corrupt.each do |key, error|
+            result[key] = repair_corruption(key) || raise(error)
+          end
+
+          result
         end
 
         def clear
@@ -257,6 +278,10 @@ module Lutaml
           file_path = existing_path_for_key(key)
           return [:missing, nil] unless file_path
 
+          read_verified_at(file_path, key)
+        end
+
+        def read_verified_at(file_path, _key)
           data = file_safe_read(file_path)
           metadata = read_metadata(metadata_path_for(file_path))
 
