@@ -111,10 +111,11 @@ module Lutaml
         def bulk_set(key_value_pairs)
           @db.transaction do
             key_value_pairs.each do |key, value|
-              serialized_value = value.is_a?(String) ? value : JSON.generate(value)
+              is_string = value.is_a?(String)
+              serialized_value = is_string ? value : JSON.generate(value)
               execute_statement(
-                "INSERT OR REPLACE INTO #{@table_name} (key, value, updated_at) VALUES (?, ?, ?)",
-                [key, serialized_value, Time.now.to_f]
+                "INSERT OR REPLACE INTO #{@table_name} (key, value, is_json, updated_at) VALUES (?, ?, ?, ?)",
+                [key, serialized_value, is_string ? 0 : 1, Time.now.to_f]
               )
             end
           end

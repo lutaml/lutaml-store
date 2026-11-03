@@ -224,4 +224,41 @@ RSpec.describe Lutaml::Store::Adapter::FileSystem do
       expect(adapter.get("n")).to eq("11")
     end
   end
+
+  describe "unchanged sets" do
+    it "leaves the stored file untouched when the value is identical" do
+      adapter.set("k", { "v" => 1 })
+      file_path = data_files.first
+      stamp = Time.now - 3600
+      File.utime(stamp, stamp, file_path)
+      adapter.set("k", { "v" => 1 })
+      expect(File.mtime(file_path)).to eq(stamp)
+      expect(adapter.get("k")).to eq({ "v" => 1 })
+    end
+    it "rewrites when the value changes" do
+      adapter.set("k", { "v" => 1 })
+      file_path = data_files.first
+      stamp = Time.now - 3600
+      File.utime(stamp, stamp, file_path)
+      adapter.set("k", { "v" => 2 })
+      expect(File.mtime(file_path)).to be > stamp
+      expect(adapter.get("k")).to eq({ "v" => 2 })
+    end
+  end
+  describe "metadata cache" do
+    it "serves values written by another adapter instance on the same root" do
+      adapter.set("k", "stored as string")
+      other = described_class.new(path: root)
+      other.set("k", { "now" => "object" })
+      expect(adapter.get("k")).to eq({ "now" => "object" })
+      other.close
+    end
+    it "serves string values written by another adapter instance" do
+      adapter.set("k", { "now" => "object" })
+      other = described_class.new(path: root)
+      other.set("k", "stored as string")
+      expect(adapter.get("k")).to eq("stored as string")
+      other.close
+    end
+  end
 end
