@@ -20,15 +20,24 @@ module Lutaml
       ENABLED_VALUE = "yeptris"
 
       class << self
+        # lutaml-model auto-selects yeptris for a format whenever the
+        # yeptris gem is in the bundle, which would silently switch
+        # YAML parsing and dumping (and its line-wrap behavior) for
+        # every model in the process. The adapter is therefore pinned
+        # explicitly: yeptris when FONTIST_YAML=yeptris, the standard
+        # Psych engine otherwise (the yeptris x86_64-linux and Windows
+        # builds currently mis-parse some plain scalars as
+        # single-element Arrays, leptris/yeptris#863).
         def activate!
-          return nil unless ENV[ENV_KEY] == ENABLED_VALUE
-          return nil unless yeptris_available?
-
-          adapter = Class.new(Lutaml::Yaml::Adapter::StandardAdapter) do
-            def self.parse(yaml, _options = {})
-              Yeptris::YAML.load(yaml)
-            end
-          end
+          adapter = if ENV[ENV_KEY] == ENABLED_VALUE && yeptris_available?
+                      Class.new(Lutaml::Yaml::Adapter::StandardAdapter) do
+                        def self.parse(yaml, _options = {})
+                          Yeptris::YAML.load(yaml)
+                        end
+                      end
+                    else
+                      Lutaml::Yaml::Adapter::StandardAdapter
+                    end
 
           Lutaml::Model::AdapterResolver.set_adapter_class(:yaml, adapter)
 
