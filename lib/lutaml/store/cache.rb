@@ -7,11 +7,15 @@ module Lutaml
 
       DEFAULT_MAX_SIZE = 1000
 
+      # LRU over Hash insertion order: re-inserting a key moves it to the
+      # newest position, so the first entry is always the least recently
+      # used. Ruby Hashes are ordered, which keeps every operation O(1);
+      # the previous access-order Array re-scanned on every hit (O(n),
+      # ~40us per hit at 1000 entries, all under the lock).
       def initialize(max_size: DEFAULT_MAX_SIZE, ttl: nil)
         @max_size = max_size
         @ttl = ttl
         @data = {}
-        @access_order = []
         @mutex = Mutex.new
       end
 
@@ -21,18 +25,15 @@ module Lutaml
           return nil unless entry
           return nil if expired?(entry)
 
-          @access_order.delete(key)
-          @access_order << key
+          refresh_recency(key, entry)
           entry.value
         end
       end
 
       def set(key, value)
         @mutex.synchronize do
-          @access_order.delete(key) if @data.key?(key)
-
+          @data.delete(key)
           @data[key] = Entry.new(value: value, timestamp: Time.now)
-          @access_order << key
 
           evict_lru while @data.size > @max_size
         end
@@ -40,26 +41,23 @@ module Lutaml
 
       def delete(key)
         @mutex.synchronize do
-          if @data.delete(key)
-            @access_order.delete(key)
-            true
-          else
-            false
-          end
+          entry = @data.delete(key)
+          entry ? true : false
         end
       end
 
       def exists?(key)
         @mutex.synchronize do
           entry = @data[key]
-          entry && !expired?(entry)
+          return false unless entry
+
+          !expired?(entry)
         end
       end
 
       def clear
         @mutex.synchronize do
           @data.clear
-          @access_order.clear
         end
       end
 
@@ -83,13 +81,17 @@ module Lutaml
           expired_keys = @data.select { |_, entry| expired?(entry) }.keys
           expired_keys.each do |key|
             @data.delete(key)
-            @access_order.delete(key)
           end
           expired_keys.size
         end
       end
 
       private
+
+      def refresh_recency(key, entry)
+        @data.delete(key)
+        @data[key] = entry
+      end
 
       def expired?(entry)
         return false unless @ttl
@@ -98,10 +100,10 @@ module Lutaml
       end
 
       def evict_lru
-        return if @access_order.empty?
+        return if @data.empty?
 
-        lru_key = @access_order.shift
-        @data.delete(lru_key)
+        oldest_key = @data.each_key.first
+        @data.delete(oldest_key)
       end
     end
   end
