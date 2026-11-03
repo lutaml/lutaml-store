@@ -2,7 +2,11 @@
 
 # The backend configures lutaml-model's adapter registry at activation,
 # so the model namespace and its adapter autoloads must be loaded even
+<<<<<<< HEAD
 # when the store is required standalone (rake tasks do).
+=======
+# when the store itself is required standalone (rake tasks do).
+>>>>>>> f3ca3d4 (Load lutaml-model before configuring its adapter registry)
 require "lutaml/model"
 
 module Lutaml
