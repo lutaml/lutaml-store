@@ -41,7 +41,7 @@ module Lutaml
       # rubocop:enable Metrics/ParameterLists
 
       def self.from_file(file_path)
-        config_data = YAML.load_file(file_path)
+        config_data = parse_yaml(File.read(file_path, encoding: "utf-8"))
         lutaml_config = config_data["lutaml_store"] || config_data
         from_hash(lutaml_config)
       rescue Errno::ENOENT
@@ -51,11 +51,19 @@ module Lutaml
       end
 
       def self.from_yaml(yaml_string)
-        config_data = YAML.safe_load(yaml_string)
+        config_data = parse_yaml(yaml_string)
         lutaml_config = config_data["lutaml_store"] || config_data
         from_hash(lutaml_config)
       rescue Psych::SyntaxError => e
         raise ConfigurationError, "Invalid YAML configuration: #{e.message}"
+      end
+
+      # Parse through the active lutaml-model YAML adapter so config
+      # files ride the same engine as document parsing (native yeptris
+      # when installed, Psych otherwise). The adapters re-raise parse
+      # failures as Psych::SyntaxError, keeping the mapping above.
+      def self.parse_yaml(source)
+        Lutaml::Model::Config.instance.yaml_adapter.parse(source)
       end
 
       def cache_enabled?
