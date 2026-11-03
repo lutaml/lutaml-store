@@ -72,12 +72,12 @@ RSpec.describe Lutaml::Store::Adapter::Sqlite do
       db.execute("INSERT INTO lutaml_store (key, value) VALUES ('str', 'plain text')")
       db.close
 
-      migrated = described_class.new(path: db_path)
+      @reopened = described_class.new(path: db_path)
 
       # Legacy rows carry no format marker: values that parse as JSON
       # decode as objects, everything else stays a string
-      expect(migrated.get("obj")).to eq({ "a" => 1 })
-      expect(migrated.get("str")).to eq "plain text"
+      expect(@reopened.get("obj")).to eq({ "a" => 1 })
+      expect(@reopened.get("str")).to eq "plain text"
     end
   end
 end
