@@ -3,7 +3,6 @@
 require "cgi"
 require "digest"
 require "fileutils"
-require "json"
 
 module Lutaml
   module Store

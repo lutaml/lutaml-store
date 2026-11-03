@@ -12,6 +12,8 @@ module Lutaml
     class CompositeModelError < Error; end
 
     autoload :VERSION, "lutaml/store/version"
+    autoload :JSON, "lutaml/store/json"
+    autoload :YamlBackend, "lutaml/store/yaml_backend"
     autoload :Config, "lutaml/store/config"
     autoload :Cache, "lutaml/store/cache"
     autoload :Monitor, "lutaml/store/monitor"
@@ -50,3 +52,5 @@ module Lutaml
     end
   end
 end
+
+Lutaml::Store::YamlBackend.activate!

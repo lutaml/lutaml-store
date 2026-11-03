@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "json"
-
 module Lutaml
   module Store
     module Source
