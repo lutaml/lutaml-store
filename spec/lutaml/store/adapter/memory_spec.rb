@@ -43,7 +43,7 @@ RSpec.describe Lutaml::Store::Adapter::Memory do
   describe "BasicStore wiring" do
     it "carries max_entries through BasicStore's adapter options" do
       store = Lutaml::Store::BasicStore.new(
-        adapter: { type: :memory, max_entries: 2 },
+        adapter: { type: :memory, max_entries: 2 }
       )
 
       store.set("a", 1)
@@ -56,7 +56,7 @@ RSpec.describe Lutaml::Store::Adapter::Memory do
 
     it "carries max_entries through the inline adapter_type hash" do
       store = Lutaml::Store::BasicStore.new(
-        adapter_type: { type: :memory, max_entries: 2 },
+        adapter_type: { type: :memory, max_entries: 2 }
       )
 
       store.set("a", 1)

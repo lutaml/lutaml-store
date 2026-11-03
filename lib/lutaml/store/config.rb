@@ -10,6 +10,7 @@ module Lutaml
                   :compression_algorithm, :compression_level, :serialization_formats,
                   :validate_on_write
 
+      # rubocop:disable Metrics/ParameterLists
       def initialize(adapter_type: :memory, adapter_options: {},
                      cache: {}, monitoring: {}, events: {},
                      compression: {}, serialization: {}, adapter: nil, **)
@@ -37,6 +38,7 @@ module Lutaml
         @serialization_formats = serialization_config.fetch(:formats, %w[marshal hash json yaml xml toml])
         @validate_on_write = serialization_config.fetch(:validate_on_write, false)
       end
+      # rubocop:enable Metrics/ParameterLists
 
       def self.from_file(file_path)
         config_data = YAML.load_file(file_path)
