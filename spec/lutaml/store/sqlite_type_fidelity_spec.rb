@@ -8,10 +8,15 @@ RSpec.describe Lutaml::Store::Adapter::Sqlite do
 
   let(:db_path) { File.join(tmpdir, "store.db") }
 
+  # Windows refuses to remove a directory that holds an open file, so
+  # every database handle opened in an example is closed before
+  # Dir.mktmpdir cleans up
   around do |example|
     Dir.mktmpdir do |dir|
       @tmpdir = dir
       example.run
+      adapter.close
+      @reopened&.close
     end
   end
 
@@ -45,6 +50,7 @@ RSpec.describe Lutaml::Store::Adapter::Sqlite do
       adapter.close
 
       reopened = described_class.new(path: db_path)
+      @reopened = reopened
       expect(reopened.get("keep_string")).to eq '{"looks": "like json"}'
       expect(reopened.get("keep_obj")).to eq({ "real" => "object" })
     end
