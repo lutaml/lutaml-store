@@ -53,6 +53,7 @@ module Lutaml
           @integrity_algorithm = @config.fetch(:integrity_algorithm, "sha256")
           @lock_path = File.expand_path(File.join(@root_path, LOCK_FILE))
           @monitor = self.class.monitor_for(@lock_path)
+          @metadata_cache = {}
 
           setup_directory_structure
         end
@@ -72,7 +73,16 @@ module Lutaml
 
         def set(key, value)
           content, format = encode_value(value)
-          with_lock(:ex) { write_entry(key, content, format) }
+          with_lock(:ex) do
+            # Writing costs two fsync-backed temp files plus renames, and
+            # idempotent rewrites (periodic model saves of unchanged data)
+            # gain nothing from them, so an entry whose stored bytes and
+            # metadata are both unchanged is left untouched
+            file_path = existing_path_for_key(key)
+            next value if file_path && entry_unchanged?(file_path, content, format)
+
+            write_entry(key, content, format)
+          end
           value
         end
 
@@ -283,7 +293,7 @@ module Lutaml
 
         def read_verified_at(file_path, _key)
           data = file_safe_read(file_path)
-          metadata = read_metadata(metadata_path_for(file_path))
+          metadata = cached_metadata(file_path)
 
           begin
             verify_data_integrity(data, metadata)
@@ -292,6 +302,11 @@ module Lutaml
           end
 
           [:ok, decode_value(data, metadata[:format])]
+        end
+
+        def entry_unchanged?(file_path, content, format)
+          File.binread(file_path) == content &&
+            read_metadata(metadata_path_for(file_path))[:format] == format
         end
 
         def write_entry(key, content, format)
@@ -432,6 +447,30 @@ module Lutaml
           JSON.parse(File.read(metadata_path), symbolize_names: true)
         rescue JSON::ParserError, Errno::ENOENT
           {}
+        end
+
+        # Reading and parsing the metadata sidecar costs a read and a JSON
+        # parse on every get; the cached copy is validated against the
+        # file's mtime, so rewrites by this or another process invalidate
+        # it. Bounded like every cache fontist/lutaml hosts live with.
+        METADATA_CACHE_MAX = 1024
+
+        def cached_metadata(file_path)
+          metadata_path = metadata_path_for(file_path)
+          return {} unless File.exist?(metadata_path)
+
+          mtime = File.mtime(metadata_path)
+          entry = @metadata_cache[metadata_path]
+          if entry&.fetch(:mtime, nil) == mtime
+            @metadata_cache.delete(metadata_path)
+            @metadata_cache[metadata_path] = entry
+            return entry[:metadata]
+          end
+
+          metadata = read_metadata(metadata_path)
+          @metadata_cache.shift while @metadata_cache.size >= METADATA_CACHE_MAX
+          @metadata_cache[metadata_path] = { mtime: mtime, metadata: metadata }
+          metadata
         end
 
         # ── Files ──

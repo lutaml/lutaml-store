@@ -81,3 +81,42 @@ RSpec.describe Lutaml::Store::Adapter::Sqlite do
     end
   end
 end
+
+RSpec.describe Lutaml::Store::Adapter::Sqlite, "bulk writes" do
+  subject(:adapter) { described_class.new(path: db_path) }
+
+  let(:db_path) { File.join(tmpdir, "bulk.db") }
+
+  around do |example|
+    Dir.mktmpdir do |dir|
+      @tmpdir = dir
+      example.run
+      adapter.close
+    end
+  end
+
+  let(:tmpdir) { @tmpdir }
+
+  it "keeps the string/object distinction across bulk_set" do
+    adapter.bulk_set(
+      "jsonish" => '{"looks": "like json"}',
+      "obj" => { "real" => "object" },
+      "plain" => "plain text"
+    )
+
+    expect(adapter.get("jsonish")).to eq '{"looks": "like json"}'
+    expect(adapter.get("obj")).to eq({ "real" => "object" })
+    expect(adapter.get("plain")).to eq "plain text"
+  end
+
+  it "preserves the distinction across reopen" do
+    adapter.bulk_set("jsonish" => '{"looks": "like json"}',
+                     "obj" => { "real" => "object" })
+    adapter.close
+
+    reopened = described_class.new(path: db_path)
+    expect(reopened.get("jsonish")).to eq '{"looks": "like json"}'
+    expect(reopened.get("obj")).to eq({ "real" => "object" })
+    reopened.close
+  end
+end
