@@ -72,6 +72,13 @@ RSpec.describe "mirror hydration at load" do
     expect(File.read(File.join(dir, "items", "a.yaml"))).not_to include("Alpha II")
   end
 
+  it "reports mirror removals so read caches invalidate" do
+    store.fetch_model(SimpleTestModel, "a") # populates the read cache
+
+    expect(store.remove_model(SimpleTestModel, "a")).to be_truthy
+    expect(store.model_exists?(SimpleTestModel, "a")).to be false
+  end
+
   it "writes the package back through save" do
     out = File.join(dir, "..", "mirror-out-#{Process.pid}")
     FileUtils.remove_entry(out) if Dir.exist?(out)

@@ -47,9 +47,14 @@ module Lutaml
         end
 
         def delete(key)
-          @mirrors.delete(key)
+          existed = @mirrors.delete(key)
           @models.delete(key)
-          @backend.delete(key)
+          result = @backend.delete(key)
+
+          # Truthy when either layer held the record — BasicStore#delete
+          # uses this to invalidate its read cache, and a dropped mirror
+          # is a real deletion even with nothing on the backend.
+          existed || result
         end
 
         def exists?(key)
