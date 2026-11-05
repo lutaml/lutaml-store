@@ -45,7 +45,9 @@ RSpec.describe "FileSystem adapter integration" do
                                   models: [{ model: FileSystemIntegrationModels::Row, key: :key }])
       store.save(row_class.new(key: "a", status: "doc"))
 
-      expect(store.store.adapter).to be_a(Lutaml::Store::Adapter::FileSystem)
+      adapter = store.store.adapter
+      expect(adapter).to be_a(Lutaml::Store::Adapter::MirrorAware)
+      expect(adapter.backend).to be_a(Lutaml::Store::Adapter::FileSystem)
       expect(Dir.exist?(File.join(@dir, "readme"))).to be(true)
     end
   end

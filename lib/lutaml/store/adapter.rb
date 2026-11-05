@@ -7,6 +7,7 @@ module Lutaml
       autoload :Memory, "lutaml/store/adapter/memory"
       autoload :FileSystem, "lutaml/store/adapter/filesystem"
       autoload :Sqlite, "lutaml/store/adapter/sqlite"
+      autoload :MirrorAware, "lutaml/store/adapter/mirror_aware"
 
       @registry = {
         memory: "Memory",
