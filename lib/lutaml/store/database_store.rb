@@ -5,10 +5,17 @@ module Lutaml
     # Store-centric API with model registry and database-style operations.
     # Provides CRUD, querying, file I/O, transactions, and events.
     class DatabaseStore
+      autoload :MirrorHydration, "lutaml/store/database_store/mirror_hydration"
+      autoload :QueryMechanics, "lutaml/store/database_store/query_mechanics"
+
+      include MirrorHydration
+      include QueryMechanics
+
       attr_reader :store, :registry, :composite_handler, :attribute_updater, :serializer
 
       def initialize(adapter:, models: [], **options)
         @store = BasicStore.new(adapter_type: adapter, **options)
+        @store.wrap_adapter(Adapter::MirrorAware)
         @registry = ModelRegistry.new(models)
         @serializer = ModelSerializer.new
         @composite_handler = CompositeModelHandler.new(@registry, @store, self, serializer: @serializer)
@@ -368,6 +375,10 @@ module Lutaml
       end
 
       def deserialize_record(hash_data, model_class, registration)
+        # Mirror-hydrated records arrive as live models straight from the
+        # transport's parse; there is no stored hash to deserialize.
+        return hash_data if hash_data.is_a?(model_class)
+
         model_instance = @serializer.deserialize(hash_data, model_class, registration)
 
         composite_references = hash_data["_composite_models"]
@@ -452,38 +463,6 @@ module Lutaml
         end
 
         deserialize_results(results, query.model_class)
-      end
-
-      def apply_sort(results, orders)
-        return results if orders.empty?
-
-        results.sort do |a, b|
-          orders.reduce(0) do |cmp, o|
-            break cmp unless cmp.zero?
-
-            va = a.last.is_a?(Hash) ? a.last[o.field.to_s] : nil
-            vb = b.last.is_a?(Hash) ? b.last[o.field.to_s] : nil
-
-            cmp_val = if va.nil? && vb.nil?
-                        0
-                      elsif va.nil?
-                        1
-                      elsif vb.nil?
-                        -1
-                      else
-                        va <=> vb || 0
-                      end
-
-            o.direction == :desc ? -cmp_val : cmp_val
-          end
-        end
-      end
-
-      def apply_pagination(results, limit, offset)
-        start = offset || 0
-        results = results[start..] || []
-        results = results.first(limit) if limit
-        results
       end
 
       # ── CRUD internals ──

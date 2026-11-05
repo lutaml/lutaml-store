@@ -81,7 +81,7 @@ module Lutaml
 
           raw = zip_entry.get_input_stream.read
           model = fmt.deserialize(raw, entry.model)
-          package_store.add_model(model)
+          package_store.register_loaded_model(model)
         end
 
         def read_directory_zip(zip_file, entry, package_store, fmt)
@@ -100,12 +100,12 @@ module Lutaml
               when :grouped
                 fmt.deserialize_many(raw, entry.model).each do |m|
                   set_key_from_zip_path(m, zip_entry.name, entry, prefix)
-                  package_store.add_model(m)
+                  package_store.register_loaded_model(m)
                 end
               else
                 model = fmt.deserialize(raw, entry.model)
                 set_key_from_zip_path(model, zip_entry.name, entry, prefix)
-                package_store.add_model(model)
+                package_store.register_loaded_model(model)
               end
             rescue StandardError => e
               warn "PackageStore: failed to load #{zip_entry.name}: #{e.message}"

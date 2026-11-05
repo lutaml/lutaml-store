@@ -4,7 +4,7 @@ module Lutaml
   module Store
     class PackageStore
       attr_accessor :metadata
-      attr_reader :definition, :assets
+      attr_reader :definition, :assets, :db
 
       def initialize(definition)
         @definition = definition
@@ -33,6 +33,14 @@ module Lutaml
 
       def add_model(model_instance)
         @db.save(model_instance)
+      end
+
+      # Register a model the transport just parsed from the package being
+      # read. Reads are served from the live model without re-serializing
+      # it back to the backend (the package files stay authoritative and
+      # untouched); add_model remains the write-through API.
+      def register_loaded_model(model_instance)
+        @db.register_loaded_model(model_instance)
       end
 
       def add_models(model_instances)

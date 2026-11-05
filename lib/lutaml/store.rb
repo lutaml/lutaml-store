@@ -25,6 +25,7 @@ module Lutaml
     autoload :ModelSerializer, "lutaml/store/model_serializer"
     autoload :ModelRegistration, "lutaml/store/model_registration"
     autoload :ModelRegistry, "lutaml/store/model_registry"
+    autoload :MirrorRef, "lutaml/store/mirror_ref"
     autoload :CompositeModelHandler, "lutaml/store/composite_model_handler"
     autoload :AttributeUpdater, "lutaml/store/attribute_updater"
     autoload :DatabaseStore, "lutaml/store/database_store"

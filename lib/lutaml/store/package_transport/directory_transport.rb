@@ -78,7 +78,7 @@ module Lutaml
           fmt = resolve_format(fmt_name)
           raw = read_file(file_path, fmt)
           model = fmt.deserialize(raw, entry.model)
-          package_store.add_model(model)
+          package_store.register_loaded_model(model)
         end
 
         def read_directory_models(base_path, entry, package_store, fmt_name)
@@ -99,12 +99,12 @@ module Lutaml
               when :grouped
                 fmt.deserialize_many(raw, entry.model).each do |m|
                   set_key_from_filename(m, file_path, entry)
-                  package_store.add_model(m)
+                  package_store.register_loaded_model(m)
                 end
               else
                 model = fmt.deserialize(raw, entry.model)
                 set_key_from_filename(model, file_path, entry)
-                package_store.add_model(model)
+                package_store.register_loaded_model(model)
               end
             rescue StandardError => e
               warn "PackageStore: failed to load #{file_path}: #{e.message}"

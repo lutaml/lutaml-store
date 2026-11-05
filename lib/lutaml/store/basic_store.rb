@@ -5,6 +5,14 @@ module Lutaml
     class BasicStore
       attr_reader :adapter, :cache, :monitor, :events, :config
 
+      # Swap in a read-through decorator over the constructed backend
+      # (e.g. Adapter::MirrorAware for records hydrated at load). Kept
+      # explicit rather than an attr_writer so the swap stays a
+      # construction-time decision.
+      def wrap_adapter(decorator_class)
+        @adapter = decorator_class.wrap(@adapter)
+      end
+
       def initialize(config_or_adapter = {})
         if config_or_adapter.is_a?(Adapter::Base)
           @adapter = config_or_adapter
