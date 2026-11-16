@@ -5,7 +5,7 @@ require_relative "lib/lutaml/store/version"
 Gem::Specification.new do |spec|
   spec.name = "lutaml-store"
   spec.version = Lutaml::Store::VERSION
-  spec.authors = ["Ronald Tse"]
+  spec.authors       = ["Ribose Inc."]
   spec.email = ["ronald.tse@ribose.com"]
 
   spec.summary = "Store-centric database-style API for Lutaml::Model with multi-backend persistence."
